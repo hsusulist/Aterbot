@@ -1,0 +1,17 @@
+{
+        "client": {
+                "host": "Ashtrails.aternos.me",
+                "port": "50319",
+                "username": "AFKBot123",
+                "password": "bot123",
+                "isRegistered": true
+        },
+        
+        "! DO NOT EDIT BELOW !": "ONLY IF YOU KNOW WHAT YOU ARE DOING",
+        "logLevel": ["error", "log", "debug"],
+        "action": {
+                "commands": ["forward", "back", "left", "right", "jump"],
+                "holdDuration": 5000,
+                "retryDelay": 15000
+        }
+}
