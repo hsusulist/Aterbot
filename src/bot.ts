@@ -71,69 +71,112 @@ const createBot = (): void => {
                         return players.length > 0 ? players[Math.floor(Math.random() * players.length)] : null;
                 };
 
-                const isWallInDirection = (direction: string): boolean => {
+                const isWallInDirection = (relativeDirection: string): boolean => {
                         const currentPos = bot.entity.position;
-                        let checkPos;
+                        const yaw = bot.entity.yaw;
                         
-                        switch(direction) {
+                        // Calculate correct direction vectors based on bot's orientation
+                        let offsetX = 0, offsetZ = 0;
+                        
+                        switch(relativeDirection) {
                                 case 'forward':
-                                        checkPos = currentPos.offset(0, 0, 1);
+                                        offsetX = -Math.sin(yaw);
+                                        offsetZ = -Math.cos(yaw);
                                         break;
                                 case 'back':
-                                        checkPos = currentPos.offset(0, 0, -1);
+                                        offsetX = Math.sin(yaw);
+                                        offsetZ = Math.cos(yaw);
                                         break;
                                 case 'left':
-                                        checkPos = currentPos.offset(-1, 0, 0);
+                                        offsetX = -Math.cos(yaw);
+                                        offsetZ = Math.sin(yaw);
                                         break;
                                 case 'right':
-                                        checkPos = currentPos.offset(1, 0, 0);
+                                        offsetX = Math.cos(yaw);
+                                        offsetZ = -Math.sin(yaw);
                                         break;
                                 default:
                                         return false;
                         }
                         
-                        const block = bot.blockAt(checkPos);
-                        return block ? block.type !== 0 : false; // 0 = air block, null = no block data
+                        // Check both foot level and head level
+                        const checkPosFeet = currentPos.offset(offsetX, 0, offsetZ);
+                        const checkPosHead = currentPos.offset(offsetX, 1, offsetZ);
+                        
+                        const blockFeet = bot.blockAt(checkPosFeet);
+                        const blockHead = bot.blockAt(checkPosHead);
+                        
+                        // Wall if either foot or head level has a solid block (not null/undefined)
+                        const feetSolid = blockFeet && blockFeet.boundingBox === 'block';
+                        const headSolid = blockHead && blockHead.boundingBox === 'block';
+                        
+                        return Boolean(feetSolid || headSolid);
                 };
+
+                const avoidWall = async (): Promise<void> => {
+                        console.log('🧱 Wall detected! Turning right until clear...');
+                        
+                        // Keep turning right until we find a clear direction
+                        let attempts = 0;
+                        while (attempts < 8) { // Max 8 attempts (45 degrees each = 360 degrees)
+                                const currentYaw = bot.entity.yaw;
+                                const newYaw = currentYaw + (Math.PI / 4); // Turn right 45 degrees
+                                await bot.look(newYaw, 0, true);
+                                
+                                // Check if path is clear in front after turning
+                                if (!isWallInDirection('forward')) {
+                                        console.log('✅ Found clear path after turning right!');
+                                        return; // Exit immediately when clear path found
+                                }
+                                
+                                attempts++;
+                                await sleep(300); // Short delay between turns
+                        }
+                        
+                        if (attempts >= 8) {
+                                console.log('⚠️ Stuck! Jumping and moving forward to clear obstacle...');
+                                bot.setControlState('jump', true);
+                                bot.setControlState('forward', true);
+                                await sleep(800);
+                                bot.clearControlStates();
+                        }
+                };
+
+                // Movement lock to prevent overlapping movements
+                let isMoving = false;
 
                 const moveTowardsPlayer = async (targetPos: any) => {
                         const botPos = bot.entity.position;
                         const dx = targetPos.x - botPos.x;
                         const dz = targetPos.z - botPos.z;
                         
-                        // Determine primary movement direction
-                        let moveDirection: Mineflayer.ControlState;
-                        if (Math.abs(dx) > Math.abs(dz)) {
-                                moveDirection = dx > 0 ? 'right' : 'left';
-                        } else {
-                                moveDirection = dz > 0 ? 'forward' : 'back';
-                        }
+                        // Look towards target first
+                        const yaw = Math.atan2(-dx, -dz);
+                        await bot.look(yaw, 0, true);
                         
-                        // Check for wall collision
-                        if (isWallInDirection(moveDirection)) {
-                                console.log('🧱 Hit a wall! Stopping player following...');
+                        // After looking at target, check if forward path is blocked
+                        if (isWallInDirection('forward')) {
+                                console.log('🧱 Wall blocking path to player! Avoiding wall and returning to normal movement...');
+                                await avoidWall();
                                 isFollowingPlayer = false;
                                 targetPlayerPosition = null;
                                 followingPlayerName = '';
                                 return;
                         }
                         
-                        // Look towards target
-                        const yaw = Math.atan2(-dx, -dz);
-                        await bot.look(yaw, 0, true);
-                        
-                        // Move towards target
+                        // Move forward towards target (since we're already facing the target)
                         const halfChance: boolean = Math.random() < 0.5;
-                        console.log(`🏃‍♂️ Following ${followingPlayerName}! Moving ${moveDirection}${halfChance ? " with sprinting" : ''}`);
+                        console.log(`🏃‍♂️ Following ${followingPlayerName}! Moving forward${halfChance ? " with sprinting" : ''}`);
                         
                         bot.setControlState('sprint', halfChance);
-                        bot.setControlState(moveDirection, true);
+                        bot.setControlState('forward', true);
                         
                         await sleep(CONFIG.action.holdDuration);
                         bot.clearControlStates();
                         
-                        // Check if reached target position or stuck
-                        const distance = botPos.distanceTo(targetPos);
+                        // Check distance after movement using current position
+                        const newBotPos = bot.entity.position;
+                        const distance = newBotPos.distanceTo(targetPos);
                         console.log(`📏 Distance to ${followingPlayerName}: ${distance.toFixed(2)} blocks`);
                         
                         if (distance < 2) {
@@ -150,6 +193,13 @@ const createBot = (): void => {
                 };
 
                 const changePos = async (): Promise<void> => {
+                        // Prevent overlapping movements
+                        if (isMoving) {
+                                return;
+                        }
+                        isMoving = true;
+                        
+                        try {
                         // 5% chance to spot and follow a player (only when not already following)
                         if (!isFollowingPlayer && Math.random() < 0.05) {
                                 console.log('🔍 Checking for nearby players...');
@@ -182,45 +232,57 @@ const createBot = (): void => {
                         // Normal movement behavior
                         moveCount++;
                         
-                        // After 20 moves, look back and go back
+                        // After 20 moves, turn around and go back
                         if (moveCount === 20 && !isGoingBack) {
-                                console.log('20 moves completed! Looking back and going back...');
+                                console.log('20 moves completed! Turning around...');
                                 
-                                // Look back (turn around 180 degrees)
+                                // Turn around 180 degrees but keep using 'forward' control
                                 const currentYaw = bot.entity.yaw;
                                 const backYaw = currentYaw + Math.PI; // Turn 180 degrees
                                 await bot.look(backYaw, 0, true);
                                 
                                 // Switch to going back
                                 isGoingBack = true;
-                                currentDirection = 'back';
+                                // Keep currentDirection = 'forward' since we turned around
                                 moveCount = 0; // Reset counter for next cycle
                         } else if (moveCount === 20 && isGoingBack) {
-                                console.log('20 back moves completed! Looking forward and going forward...');
+                                console.log('20 back moves completed! Turning around again...');
                                 
-                                // Look forward again
+                                // Turn forward again
                                 const currentYaw = bot.entity.yaw;
                                 const forwardYaw = currentYaw + Math.PI; // Turn 180 degrees back
                                 await bot.look(forwardYaw, 0, true);
                                 
                                 // Switch to going forward
                                 isGoingBack = false;
-                                currentDirection = 'forward';
+                                // Keep currentDirection = 'forward' since we turned around
                                 moveCount = 0; // Reset counter for next cycle
                         }
                         
+                        // Check for wall collision in normal movement (always check forward since we turn around)
+                        if (isWallInDirection('forward')) {
+                                await avoidWall();
+                                return; // Skip this movement cycle to allow the new direction to take effect
+                        }
+                        
                         const halfChance: boolean = Math.random() < 0.5;
-                        console.debug(`${currentDirection}${halfChance ? " with sprinting" : ''} (Move ${moveCount}/20)`);
+                        console.debug(`forward${halfChance ? " with sprinting" : ''} (Move ${moveCount}/20)`);
 
                         bot.setControlState('sprint', halfChance);
-                        bot.setControlState(currentDirection, true);
+                        bot.setControlState('forward', true); // Always use forward since we handle direction by turning
 
                         await sleep(CONFIG.action.holdDuration);
                         bot.clearControlStates();
+                        } finally {
+                                isMoving = false;
+                        }
                         return;
                 };
                 
                 const changeView = async (): Promise<void> => {
+                        // Don't interfere with movement or wall avoidance
+                        if (isMoving) return;
+                        
                         // 40% chance to look around each move (more human-like)
                         if (Math.random() < 0.4) {
                                 const lookActions = [
