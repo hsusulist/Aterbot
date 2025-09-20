@@ -57,6 +57,9 @@ const createBot = (): void => {
                 let originalPosition: any = null;
                 let lastPlayerCheckTime = 0;
                 let lastPlayerDetected = '';
+                let isStandingStill = false;
+                let waitingForServerResponse = false;
+                let serverQuestionAsker = '';
                 
                 // Chat message every 5 minutes
                 const chatInterval = setInterval(() => {
@@ -70,6 +73,29 @@ const createBot = (): void => {
                         if (username === bot.username) return;
                         
                         console.log(`💬 ${username}: ${message}`);
+                        
+                        // Check if waiting for server love response
+                        if (waitingForServerResponse && username === serverQuestionAsker) {
+                                const response = message.toLowerCase().trim();
+                                if (response === 'yes' || response === 'y') {
+                                        console.log(`😊 ${username} loves the server! Responding positively.`);
+                                        bot.chat('me too i loved it');
+                                        waitingForServerResponse = false;
+                                        serverQuestionAsker = '';
+                                } else if (response === 'no' || response === 'n') {
+                                        console.log(`😔 ${username} doesn't love the server. Standing still.`);
+                                        bot.chat('oh...');
+                                        isStandingStill = true;
+                                        waitingForServerResponse = false;
+                                        serverQuestionAsker = '';
+                                        // Stand still for 10 seconds, then resume
+                                        setTimeout(() => {
+                                                console.log('💭 Resuming movement after standing still.');
+                                                isStandingStill = false;
+                                        }, 10000);
+                                }
+                                return;
+                        }
                         
                         // Check if message contains "hi" followed by a player name
                         const hiMatch = message.toLowerCase().match(/^hi\s+(\w+)$/i);
@@ -93,8 +119,15 @@ const createBot = (): void => {
                                         followingPlayerName = targetPlayer.username;
                                         originalPosition = bot.entity.position.clone();
                                         
-                                        // Respond in chat
-                                        bot.chat(`Hi ${targetPlayer.username}! Coming to you! 👋`);
+                                        // Respond in chat with chance to ask about server
+                                        const serverQuestionChance = Math.random() < 0.3; // 30% chance
+                                        if (serverQuestionChance) {
+                                                bot.chat(`Hi ${targetPlayer.username}! do u love the server?`);
+                                                waitingForServerResponse = true;
+                                                serverQuestionAsker = targetPlayer.username;
+                                        } else {
+                                                bot.chat(`Hi ${targetPlayer.username}! Coming to you! 👋`);
+                                        }
                                 } else {
                                         console.log(`❓ Player '${targetPlayerName}' not found or not online`);
                                 }
@@ -220,7 +253,16 @@ const createBot = (): void => {
                         
                         if (distance < 3) {
                                 console.log(`✅ Reached ${followingPlayerName}! Hello! 👋`);
-                                bot.chat(`Hello ${followingPlayerName}! 😊`);
+                                
+                                // 40% chance to ask about server love when greeting
+                                const serverQuestionChance = Math.random() < 0.4;
+                                if (serverQuestionChance) {
+                                        bot.chat(`Hello ${followingPlayerName}! do u love the server?`);
+                                        waitingForServerResponse = true;
+                                        serverQuestionAsker = followingPlayerName;
+                                } else {
+                                        bot.chat(`Hello ${followingPlayerName}! 😊`);
+                                }
                                 // Shift when greeting the player
                                 bot.setControlState('sneak', true);
                                 await sleep(2000); // Hold shift for 2 seconds when greeting
@@ -240,8 +282,8 @@ const createBot = (): void => {
                 };
 
                 const changePos = async (): Promise<void> => {
-                        // Prevent overlapping movements
-                        if (isMoving) {
+                        // Prevent overlapping movements or if standing still
+                        if (isMoving || isStandingStill) {
                                 return;
                         }
                         isMoving = true;
@@ -260,7 +302,16 @@ const createBot = (): void => {
                                         lastPlayerDetected = nearbyPlayer.username;
                                         
                                         console.log(`👀 Spotted player ${followingPlayerName}! Following them...`);
-                                        bot.chat(`${followingPlayerName}!`);
+                                        
+                                        // 25% chance to ask about server love
+                                        const serverQuestionChance = Math.random() < 0.25;
+                                        if (serverQuestionChance) {
+                                                bot.chat(`${followingPlayerName}! do u love the server?`);
+                                                waitingForServerResponse = true;
+                                                serverQuestionAsker = followingPlayerName;
+                                        } else {
+                                                bot.chat(`${followingPlayerName}!`);
+                                        }
                                         
                                         // Shift when looking at the player
                                         bot.setControlState('sneak', true);
