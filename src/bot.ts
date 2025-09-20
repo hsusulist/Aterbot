@@ -145,7 +145,7 @@ const createBot = (): void => {
                                 
                                 if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup') || response.includes('hi') || response.includes('hello') || response.includes('hey')) {
                                         console.log(`😊 ${username} loves the server! Responding positively.`);
-                                        bot.chat(`i loved this server very much !`);
+                                        bot.chat(`me too i loved this server very much`);
                                         waitingForServerResponse = false;
                                         isStandingStill = false;
                                         serverQuestionAsker = '';
@@ -207,7 +207,7 @@ const createBot = (): void => {
                                                                   message.toLowerCase().includes('hey afkbot123');
                                         
                                         const responses = isExactBotGreeting ? 
-                                                [`hi ${username}`] : // Exact response for "hi AFKbot123"
+                                                [`hi`] : // Simple "hi" response for "hi AFKbot123"
                                                 [
                                                         `Hi ${username}!`,
                                                         `Hello ${username}!`,
@@ -288,31 +288,8 @@ const createBot = (): void => {
                                 const msgText = jsonMsg.toString();
                                 console.log(`📄 RAW MESSAGE: ${msgText}`);
                                 
-                                // Check if this is just a simple response (like "YES", "yes", "no") when waiting
-                                if (waitingForServerResponse && msgText && typeof msgText === 'string') {
-                                        const simpleResponse = msgText.toLowerCase().trim();
-                                        if (simpleResponse === 'yes' || simpleResponse === 'y' || simpleResponse === 'yeah' || 
-                                            simpleResponse === 'yep' || simpleResponse === 'yup' || simpleResponse === 'love' ||
-                                            simpleResponse === 'no' || simpleResponse === 'n' || simpleResponse === 'hate' || 
-                                            simpleResponse === 'nah' || simpleResponse === 'bad') {
-                                                console.log(`🎯 SIMPLE RESPONSE DETECTED: "${simpleResponse}" (assuming from ${serverQuestionAsker})`);
-                                                
-                                                if (simpleResponse.includes('yes') || simpleResponse === 'y' || simpleResponse === 'yeah' || simpleResponse === 'love' || simpleResponse === 'yep' || simpleResponse === 'yup') {
-                                                        console.log(`😊 Player loves the server! Responding positively.`);
-                                                        bot.chat(`i loved this server very much !`);
-                                                } else {
-                                                        console.log(`😡 Player doesn't love the server. Getting angry!`);
-                                                        bot.chat(`GET OUT YOU DONT BELONG TO THIS SERVER IF YOU DONT LOVE IT I HATE U`);
-                                                }
-                                                
-                                                // Always reset the waiting state and keep moving!
-                                                waitingForServerResponse = false;
-                                                isStandingStill = false;
-                                                serverQuestionAsker = '';
-                                                if (responseTimeout) clearTimeout(responseTimeout);
-                                                return;
-                                        }
-                                }
+                                // REMOVED: Simple response fallback that bypassed username verification
+                                // Now only accept responses from properly parsed messages with verified usernames
                                 
                                 // Extract username and message from various formats
                                 const chatMatch = msgText.match(/<([^>]+)>\s*(.+)|([^:]+):\s*(.+)/);
@@ -335,7 +312,7 @@ const createBot = (): void => {
                                                 
                                                 if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup') || response.includes('hi') || response.includes('hello') || response.includes('hey')) {
                                                         console.log(`😊 ${username} loves the server! (via fallback)`);
-                                                        bot.chat(`i loved this server very much !`);
+                                                        bot.chat(`me too i loved this server very much`);
                                                         waitingForServerResponse = false;
                                                         isStandingStill = false;
                                                         serverQuestionAsker = '';
@@ -382,6 +359,13 @@ const createBot = (): void => {
                 let lastYaw = 0;
                 let lastPitch = 0;
                 let targetLockUntil = 0;
+                
+                // Anti-loop detection for pathfinding
+                let lastDirection = '';
+                let sameDirectionCount = 0;
+                let stuckCounter = 0;
+                let lastPosition: any = null;
+                let positionHistory = [];
                 
                 const smoothLookTo = (targetPos: any, maxYawStep = 0.2, maxPitchStep = 0.15, deadZone = 0.05): boolean => {
                         if (!bot.entity || !targetPos) return false;
@@ -589,6 +573,22 @@ const createBot = (): void => {
                         const scanResults = scanNearbyBlocks();
                         const bestPath = findBestDirection(scanResults);
                         
+                        // Anti-loop detection: if we keep choosing the same direction, try something else
+                        if (bestPath.direction === lastDirection) {
+                                sameDirectionCount++;
+                        } else {
+                                sameDirectionCount = 0;
+                                lastDirection = bestPath.direction;
+                        }
+                        
+                        // If stuck in same direction for too long, force a different approach
+                        if (sameDirectionCount > 3) {
+                                console.log(`🚨 Breaking loop! Tried ${bestPath.direction} ${sameDirectionCount} times. Forcing back direction.`);
+                                bestPath.direction = 'back';
+                                bestPath.score = 200; // Override score
+                                sameDirectionCount = 0;
+                        }
+                        
                         // If we found a good direction, turn towards it smoothly
                         if (bestPath.direction !== 'forward') {
                                 let angleChange = 0;
@@ -618,13 +618,15 @@ const createBot = (): void => {
                                 // Use smooth turning with moderate speed for pathfinding
                                 smoothLookTo(pathTarget, 0.25, 0.15, 0.05);
                                 
-                                // If the best path involves jumping over obstacles, prepare to jump
-                                if (bestPath.scanResults[bestPath.direction].canJump) {
-                                        console.log('🦘 Preparing to jump over obstacle...');
+                                // If the best path involves jumping over obstacles, prepare to jump (only when sprinting)
+                                if (bestPath.scanResults[bestPath.direction].canJump && bot.getControlState('sprint')) {
+                                        console.log('🦘 Preparing to jump over obstacle while sprinting...');
                                         await sleep(200); // Brief pause before jumping
                                         bot.setControlState('jump', true);
                                         await sleep(300);
                                         bot.setControlState('jump', false);
+                                } else if (bestPath.scanResults[bestPath.direction].canJump) {
+                                        console.log('🚶 Obstacle detected but not sprinting - walking around instead...');
                                 }
                         }
                         
@@ -835,9 +837,9 @@ const createBot = (): void => {
                                 console.log(`🎲 Will move ${targetDistance} steps in this direction`);
                         }
                         
-                        // Random chance to pause and do something (10% chance) - NO MORE SNEAKING
-                        if (Math.random() < 0.10) {
-                                const actions = ['pause', 'jump', 'spin'];
+                        // Much lower chance for random actions to reduce anti-cheat triggers (2% chance)
+                        if (Math.random() < 0.02) {
+                                const actions = ['pause', 'look_around']; // Removed jump and spin to be less suspicious
                                 const action = getRandom(actions);
                                 
                                 switch(action) {
@@ -845,27 +847,58 @@ const createBot = (): void => {
                                                 console.log('⏸️ Taking a random pause...');
                                                 await sleep(1000 + Math.random() * 2000); // Pause 1-3 seconds
                                                 return;
-                                        case 'jump':
-                                                console.log('🦘 Random jump!');
-                                                bot.setControlState('jump', true);
-                                                await sleep(300);
-                                                bot.setControlState('jump', false);
-                                                break;
-                                        case 'spin':
-                                                console.log('🌀 Spinning around!');
+                                        case 'look_around':
+                                                console.log('👀 Looking around naturally...');
                                                 const currentYaw = bot.entity.yaw;
-                                                const randomSpin = Math.random() * Math.PI * 2; // Random full spin
-                                                const targetYaw = currentYaw + randomSpin;
-                                                const spinTarget = {
+                                                const smallTurn = (Math.random() - 0.5) * 0.5; // Small 15 degree turn
+                                                const targetYaw = currentYaw + smallTurn;
+                                                const lookTarget = {
                                                         x: bot.entity.position.x + Math.sin(-targetYaw) * 10,
-                                                        y: bot.entity.position.y,
+                                                        y: bot.entity.position.y + (Math.random() - 0.5) * 3, // Look up/down slightly
                                                         z: bot.entity.position.z + Math.cos(-targetYaw) * 10
                                                 };
-                                                // Use slower smooth turning for spinning
-                                                smoothLookTo(spinTarget, 0.4, 0.3, 0.05);
+                                                // Very gentle, natural looking
+                                                smoothLookTo(lookTarget, 0.08, 0.06, 0.02);
+                                                await sleep(1000 + Math.random() * 2000); // Brief pause to look
                                                 break;
                                 }
                         }
+                        
+                        // Anti-stuck detection: check if bot hasn't moved significantly
+                        const currentPos = bot.entity.position;
+                        if (lastPosition) {
+                                const distanceMoved = currentPos.distanceTo(lastPosition);
+                                if (distanceMoved < 0.5) { // Barely moved
+                                        stuckCounter++;
+                                        console.log(`⚠️ Bot seems stuck! Distance moved: ${distanceMoved.toFixed(2)}, stuck counter: ${stuckCounter}`);
+                                        
+                                        if (stuckCounter > 10) {
+                                                console.log('🚨 Bot is definitely stuck! Attempting emergency escape...');
+                                                // Emergency escape: jump and move back
+                                                bot.setControlState('jump', true);
+                                                await sleep(300);
+                                                bot.setControlState('jump', false);
+                                                
+                                                // Turn around completely
+                                                const escapeYaw = bot.entity.yaw + Math.PI;
+                                                const escapeTarget = {
+                                                        x: bot.entity.position.x + Math.sin(-escapeYaw) * 15,
+                                                        y: bot.entity.position.y,
+                                                        z: bot.entity.position.z + Math.cos(-escapeYaw) * 15
+                                                };
+                                                smoothLookTo(escapeTarget, 0.4, 0.3, 0.1);
+                                                
+                                                // Reset counters
+                                                stuckCounter = 0;
+                                                sameDirectionCount = 0;
+                                                lastDirection = '';
+                                                return;
+                                        }
+                                } else {
+                                        stuckCounter = Math.max(0, stuckCounter - 1); // Reduce if moving
+                                }
+                        }
+                        lastPosition = currentPos.clone();
                         
                         // Check for wall collision
                         if (isWallInDirection('forward')) {
@@ -887,27 +920,30 @@ const createBot = (): void => {
                         }
                         
                         // Batch movement approach - hold actions for multiple steps to reduce entity action spam
-                        if (!currentSprintState || moveCount % 8 === 0) { // Change sprint state every 8 steps or first time
-                                currentSprintState = Math.random() < 0.08; // 8% chance to sprint (very low to avoid violations)
+                        if (!currentSprintState || moveCount % 12 === 0) { // Change sprint state every 12 steps for less suspicious behavior
+                                currentSprintState = Math.random() < 0.04; // Reduced to 4% chance to sprint
                                 console.log(`🚶 Moving${currentSprintState ? " (sprinting batch)" : " (walking batch)"} (Step ${moveCount})`);
                                 bot.setControlState('sprint', currentSprintState);
                         } else {
                                 console.log(`🚶 Moving${currentSprintState ? " (sprinting)" : ""} (Step ${moveCount})`);
                         }
                         
-                        // Very rare jumping - only when sprinting and with long cooldowns
+                        // Only jump when sprinting AND there's an obstacle that requires jumping
                         const timeSinceLastJump = Date.now() - (lastJumpTime || 0);
-                        if (currentSprintState && Math.random() < 0.03 && timeSinceLastJump > 8000) { // 3% chance, 8s cooldown
+                        const blockAhead = bot.blockAt(bot.entity.position.offset(0, 0, -1)); // Block in front
+                        const needsJump = blockAhead && blockAhead.boundingBox === 'block' && blockAhead.position.y >= bot.entity.position.y;
+                        
+                        if (currentSprintState && needsJump && timeSinceLastJump > 3000) { // Only when sprinting, obstacle ahead, 3s cooldown
                                 bot.setControlState('jump', true);
                                 lastJumpTime = Date.now();
-                                console.log('🦘 Natural jump!');
+                                console.log('🦘 Jumping over obstacle while sprinting!');
                         }
                         
                         // Set forward movement
                         bot.setControlState('forward', true);
                         
-                        // Very subtle head movements - much less frequent 
-                        if (Math.random() < 0.05) { // Only 5% chance for very natural feel
+                        // Very rare head movements to avoid anti-cheat
+                        if (Math.random() < 0.01) { // Only 1% chance for very natural feel
                                 const currentYaw = bot.entity.yaw;
                                 
                                 // Tiny, realistic head adjustments
