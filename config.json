@@ -13,7 +13,7 @@
                         "comment": "Set enabled to true and add your Microsoft account email/password to use a custom skin"
                 },
                 "randomSkin": {
-                        "enabled": true,
+                        "enabled": false,
                         "skins": [
                                 "SteveBot", "AlexBot", "CoolDude123", "MinecraftPro", "BuilderBot",
                                 "PlayerOne", "GamerBoy", "CraftMaster", "BlockHead", "PixelPlayer"
