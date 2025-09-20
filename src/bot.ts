@@ -83,8 +83,8 @@ const createBot = (): void => {
                                         waitingForServerResponse = false;
                                         serverQuestionAsker = '';
                                 } else if (response === 'no' || response === 'n') {
-                                        console.log(`😔 ${username} doesn't love the server. Standing still.`);
-                                        bot.chat('oh...');
+                                        console.log(`😡 ${username} doesn't love the server. Getting angry!`);
+                                        bot.chat('IF U HATE THIS SERVER THEN GET OUT I HATE U');
                                         isStandingStill = true;
                                         waitingForServerResponse = false;
                                         serverQuestionAsker = '';
@@ -254,8 +254,8 @@ const createBot = (): void => {
                         if (distance < 3) {
                                 console.log(`✅ Reached ${followingPlayerName}! Hello! 👋`);
                                 
-                                // 40% chance to ask about server love when greeting
-                                const serverQuestionChance = Math.random() < 0.4;
+                                // 70% chance to ask about server love when greeting
+                                const serverQuestionChance = Math.random() < 0.70;
                                 if (serverQuestionChance) {
                                         bot.chat(`Hello ${followingPlayerName}! do u love the server?`);
                                         waitingForServerResponse = true;
@@ -289,9 +289,9 @@ const createBot = (): void => {
                         isMoving = true;
                         
                         try {
-                        // 10% chance to spot and follow a player (only when not already following) with 5-second cooldown
+                        // 5% chance to spot and follow a player (only when not already following) with 30-second cooldown
                         const now = Date.now();
-                        if (!isFollowingPlayer && Math.random() < 0.10 && (now - lastPlayerCheckTime) > 5000) {
+                        if (!isFollowingPlayer && Math.random() < 0.05 && (now - lastPlayerCheckTime) > 30000) {
                                 lastPlayerCheckTime = now;
                                 const nearbyPlayer = findNearbyPlayer();
                                 if (nearbyPlayer && nearbyPlayer.username !== lastPlayerDetected) {
@@ -303,8 +303,8 @@ const createBot = (): void => {
                                         
                                         console.log(`👀 Spotted player ${followingPlayerName}! Following them...`);
                                         
-                                        // 25% chance to ask about server love
-                                        const serverQuestionChance = Math.random() < 0.25;
+                                        // 60% chance to ask about server love
+                                        const serverQuestionChance = Math.random() < 0.60;
                                         if (serverQuestionChance) {
                                                 bot.chat(`${followingPlayerName}! do u love the server?`);
                                                 waitingForServerResponse = true;
