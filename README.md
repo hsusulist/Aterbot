@@ -39,8 +39,7 @@ Example:
   `
 
 - Then start the bot:
-  `bash
-  node index.js
+  on the top left corner 
   `
 
 → The bot will log into your Minecraft server and stay online.
