@@ -19,7 +19,7 @@ pls make the server cracked to the bot works
 
 - Open the file named config.json
 - Enter your server IP and server port
-- Choose a bot username (e.g. AFKSRBot)
+- Choose a bot username (e.g. AFKSRB)
 - If your server uses an authorization plugin (like AuthMe), set a bot password
 
 Example:
@@ -29,7 +29,7 @@ Example:
     "host": "Australitis.aternos.me",
     "port": "39519",
     "password": "00000!",
-    "name": "AFKSRBot",
+    "name": "Bot",
     "inRegistered": false
   }
 }
@@ -37,7 +37,7 @@ Example:
 
 ---
 
-▶️ Step 3: Run the bot
+📥 Step 3: Install required libraries
 
 - In the Replit Shell or Console, install the required library:
   `bash
