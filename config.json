@@ -2,8 +2,8 @@
         "client": {
                 "host": "server_ip",
                 "port": "server_port",
-                "username": "AFKBot123",
-                "password": "bot123",
+                "username": "Bot_name",
+                "password": "bot_password",
                 "isRegistered": true,
                 "auth": "offline",
                 "microsoftAccount": {
