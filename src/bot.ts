@@ -62,6 +62,43 @@ const createBot = (): void => {
                         bot.chat('wow I love this server');
                 }, 5 * 60 * 1000); // 5 minutes
                 
+                // Listen for chat messages to detect "hi [playername]" commands
+                bot.on('chat', (username, message) => {
+                        // Don't react to our own messages
+                        if (username === bot.username) return;
+                        
+                        console.log(`💬 ${username}: ${message}`);
+                        
+                        // Check if message contains "hi" followed by a player name
+                        const hiMatch = message.toLowerCase().match(/^hi\s+(\w+)$/i);
+                        if (hiMatch) {
+                                const targetPlayerName = hiMatch[1];
+                                
+                                // Find the target player
+                                const targetPlayer = Object.values(bot.players).find(player => 
+                                        player.username && 
+                                        player.username.toLowerCase() === targetPlayerName.toLowerCase() &&
+                                        player.entity &&
+                                        player.username !== bot.username
+                                );
+                                
+                                if (targetPlayer) {
+                                        console.log(`👋 ${username} said hi to ${targetPlayer.username}! Moving to them...`);
+                                        
+                                        // Set following state
+                                        isFollowingPlayer = true;
+                                        targetPlayerPosition = targetPlayer.entity.position.clone();
+                                        followingPlayerName = targetPlayer.username;
+                                        originalPosition = bot.entity.position.clone();
+                                        
+                                        // Respond in chat
+                                        bot.chat(`Hi ${targetPlayer.username}! Coming to you! 👋`);
+                                } else {
+                                        console.log(`❓ Player '${targetPlayerName}' not found or not online`);
+                                }
+                        }
+                });
+                
                 const findNearbyPlayer = () => {
                         const players = Object.values(bot.players).filter(player => 
                                 player.entity && 
@@ -179,13 +216,15 @@ const createBot = (): void => {
                         const distance = newBotPos.distanceTo(targetPos);
                         console.log(`📏 Distance to ${followingPlayerName}: ${distance.toFixed(2)} blocks`);
                         
-                        if (distance < 2) {
-                                console.log(`✅ Reached ${followingPlayerName}'s last position! Returning to normal behavior...`);
+                        if (distance < 3) {
+                                console.log(`✅ Reached ${followingPlayerName}! Hello! 👋`);
+                                bot.chat(`Hello ${followingPlayerName}! 😊`);
                                 isFollowingPlayer = false;
                                 targetPlayerPosition = null;
                                 followingPlayerName = '';
-                        } else if (distance > 50) {
+                        } else if (distance > 100) {
                                 console.log(`🚫 Target too far away (${distance.toFixed(2)} blocks)! Giving up chase...`);
+                                bot.chat(`Sorry ${followingPlayerName}, you're too far away! 😅`);
                                 isFollowingPlayer = false;
                                 targetPlayerPosition = null;
                                 followingPlayerName = '';
@@ -225,7 +264,22 @@ const createBot = (): void => {
                         
                         // If currently following a player, continue following
                         if (isFollowingPlayer && targetPlayerPosition) {
-                                await moveTowardsPlayer(targetPlayerPosition);
+                                // Update target player position if player is still online
+                                const currentTarget = Object.values(bot.players).find(player => 
+                                        player.username === followingPlayerName && 
+                                        player.entity
+                                );
+                                
+                                if (currentTarget) {
+                                        // Update to current position for better tracking
+                                        targetPlayerPosition = currentTarget.entity.position.clone();
+                                        await moveTowardsPlayer(targetPlayerPosition);
+                                } else {
+                                        console.log(`❌ Target player ${followingPlayerName} is no longer online. Stopping follow.`);
+                                        isFollowingPlayer = false;
+                                        targetPlayerPosition = null;
+                                        followingPlayerName = '';
+                                }
                                 return;
                         }
                         
