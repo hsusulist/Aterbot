@@ -87,10 +87,48 @@ const createBot = () => {
                 }
                 return;
             }
-            // Check if message contains "hi" followed by a player name
+            // Check if someone is greeting the bot directly
+            const botGreeting = message.toLowerCase().match(/\b(hi|hello|hey)\b.*\b(afk|bot|afkbot)\b/i) ||
+                message.toLowerCase().match(/^(hi|hello|hey)$/i) ||
+                message.toLowerCase().includes(bot.username.toLowerCase());
+            if (botGreeting) {
+                console.log(`👋 ${username} is greeting the bot! Responding and moving to them...`);
+                // Find the player who greeted us
+                const greetingPlayer = Object.values(bot.players).find(player => player.username &&
+                    player.username.toLowerCase() === username.toLowerCase() &&
+                    player.entity &&
+                    player.username !== bot.username);
+                if (greetingPlayer) {
+                    // Set following state to go to the person who greeted us
+                    isFollowingPlayer = true;
+                    targetPlayerPosition = greetingPlayer.entity.position.clone();
+                    followingPlayerName = greetingPlayer.username;
+                    originalPosition = bot.entity.position.clone();
+                    // Respond in chat
+                    const responses = [
+                        `Hi ${username}! Coming to you! 👋`,
+                        `Hello ${username}! On my way!`,
+                        `Hey ${username}! Let me come over!`
+                    ];
+                    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+                    bot.chat(randomResponse);
+                }
+                else {
+                    // Even if we can't find them, still respond
+                    bot.chat(`Hi ${username}! I hear you but can't see you!`);
+                }
+                return;
+            }
+            // Check if message contains "hi" followed by a player name (original functionality)
             const hiMatch = message.toLowerCase().match(/^hi\s+(\w+)$/i);
             if (hiMatch) {
                 const targetPlayerName = hiMatch[1];
+                // Skip if they're trying to greet the bot (handled above)
+                if (targetPlayerName.toLowerCase().includes('afk') ||
+                    targetPlayerName.toLowerCase().includes('bot') ||
+                    targetPlayerName.toLowerCase() === bot.username.toLowerCase()) {
+                    return;
+                }
                 // Find the target player
                 const targetPlayer = Object.values(bot.players).find(player => player.username &&
                     player.username.toLowerCase() === targetPlayerName.toLowerCase() &&
