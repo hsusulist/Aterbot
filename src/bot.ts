@@ -20,12 +20,29 @@ const reconnect = async (): Promise<void> => {
 };
 
 const createBot = (): void => {
-        bot = Mineflayer.createBot({
+        // Bot configuration with optional skin support
+        const botConfig: any = {
                 host: CONFIG.client.host,
                 port: +CONFIG.client.port,
-                username: CONFIG.client.username,
                 version: '1.20.4' // Specify Minecraft version
-        } as const);
+        };
+        
+        // Check if Microsoft account is enabled for custom skin
+        if (CONFIG.client.microsoftAccount?.enabled && CONFIG.client.microsoftAccount.email) {
+                console.log('🎨 Using Microsoft account for custom skin...');
+                botConfig.username = CONFIG.client.microsoftAccount.email;
+                botConfig.password = CONFIG.client.microsoftAccount.password;
+                botConfig.auth = 'microsoft';
+        } else {
+                console.log('🤖 Using offline mode (default Steve skin)');
+                botConfig.username = CONFIG.client.username;
+                botConfig.auth = CONFIG.client.auth || 'offline';
+                if (CONFIG.client.password && CONFIG.client.auth !== 'offline') {
+                        botConfig.password = CONFIG.client.password;
+                }
+        }
+        
+        bot = Mineflayer.createBot(botConfig);
 
 
         bot.once('error', error => {
@@ -49,6 +66,7 @@ const createBot = (): void => {
                 }, 2000); // Wait 2 seconds before sending command
                 
                 let moveCount = 0;
+                let targetDistance = 10 + Math.floor(Math.random() * 15); // Initial random distance 10-25
                 let currentDirection: Mineflayer.ControlState = 'forward';
                 let isGoingBack = false;
                 let isFollowingPlayer = false;
@@ -403,49 +421,103 @@ const createBot = (): void => {
                                 return;
                         }
                         
-                        // Normal movement behavior
+                        // Random human-like movement behavior
                         moveCount++;
                         
-                        // After 20 moves, turn around and go back
-                        if (moveCount === 20 && !isGoingBack) {
-                                console.log('20 moves completed! Turning around...');
+                        // Change direction when target distance reached or random chance (15%)
+                        if (moveCount >= targetDistance || Math.random() < 0.15) {
+                                const directions = ['forward', 'left', 'right', 'back'];
+                                const newDirection = getRandom(directions);
                                 
-                                // Turn around 180 degrees but keep using 'forward' control
-                                const currentYaw = bot.entity.yaw;
-                                const backYaw = currentYaw + Math.PI; // Turn 180 degrees
-                                await bot.look(backYaw, 0, true);
+                                console.log(`🎯 Randomly changing direction to: ${newDirection}`);
                                 
-                                // Switch to going back
-                                isGoingBack = true;
-                                // Keep currentDirection = 'forward' since we turned around
-                                moveCount = 0; // Reset counter for next cycle
-                        } else if (moveCount === 20 && isGoingBack) {
-                                console.log('20 back moves completed! Turning around again...');
+                                // Calculate new direction angle
+                                let angleChange = 0;
+                                switch(newDirection) {
+                                        case 'left':
+                                                angleChange = -Math.PI / 2; // Turn left 90 degrees
+                                                break;
+                                        case 'right':
+                                                angleChange = Math.PI / 2; // Turn right 90 degrees
+                                                break;
+                                        case 'back':
+                                                angleChange = Math.PI; // Turn around 180 degrees
+                                                break;
+                                        case 'forward':
+                                        default:
+                                                angleChange = 0; // Continue forward
+                                                break;
+                                }
                                 
-                                // Turn forward again
-                                const currentYaw = bot.entity.yaw;
-                                const forwardYaw = currentYaw + Math.PI; // Turn 180 degrees back
-                                await bot.look(forwardYaw, 0, true);
+                                if (angleChange !== 0) {
+                                        const currentYaw = bot.entity.yaw;
+                                        await bot.look(currentYaw + angleChange, 0, true);
+                                }
                                 
-                                // Switch to going forward
-                                isGoingBack = false;
-                                // Keep currentDirection = 'forward' since we turned around
-                                moveCount = 0; // Reset counter for next cycle
+                                // Reset movement counter with random distance (5-25 moves)
+                                targetDistance = 5 + Math.floor(Math.random() * 20);
+                                moveCount = 0;
+                                console.log(`🎲 Will move ${targetDistance} steps in this direction`);
                         }
                         
-                        // Check for wall collision in normal movement (always check forward since we turn around)
+                        // Random chance to pause and do something (10% chance)
+                        if (Math.random() < 0.10) {
+                                const actions = ['pause', 'jump', 'sneak', 'spin'];
+                                const action = getRandom(actions);
+                                
+                                switch(action) {
+                                        case 'pause':
+                                                console.log('⏸️ Taking a random pause...');
+                                                await sleep(1000 + Math.random() * 2000); // Pause 1-3 seconds
+                                                return;
+                                        case 'jump':
+                                                console.log('🦘 Random jump!');
+                                                bot.setControlState('jump', true);
+                                                await sleep(300);
+                                                bot.setControlState('jump', false);
+                                                break;
+                                        case 'sneak':
+                                                console.log('🤫 Sneaking for a moment...');
+                                                bot.setControlState('sneak', true);
+                                                await sleep(500 + Math.random() * 1000);
+                                                bot.setControlState('sneak', false);
+                                                break;
+                                        case 'spin':
+                                                console.log('🌀 Spinning around!');
+                                                const currentYaw = bot.entity.yaw;
+                                                const randomSpin = Math.random() * Math.PI * 2; // Random full spin
+                                                await bot.look(currentYaw + randomSpin, 0, true);
+                                                break;
+                                }
+                        }
+                        
+                        // Check for wall collision
                         if (isWallInDirection('forward')) {
                                 await avoidWall();
                                 return; // Skip this movement cycle to allow the new direction to take effect
                         }
                         
-                        const halfChance: boolean = Math.random() < 0.5;
-                        console.debug(`forward${halfChance ? " with sprinting" : ''} (Move ${moveCount}/20)`);
+                        // Random movement variations
+                        const sprintChance = Math.random() < 0.4; // 40% chance to sprint
+                        const jumpWhileMoving = Math.random() < 0.08; // 8% chance to jump while moving
+                        const sneakWhileMoving = Math.random() < 0.05; // 5% chance to sneak while moving
+                        
+                        console.log(`🚶 Moving${sprintChance ? " (sprinting)" : ""}${jumpWhileMoving ? " (jumping)" : ""}${sneakWhileMoving ? " (sneaking)" : ""} (Step ${moveCount})`);
 
-                        bot.setControlState('sprint', halfChance);
-                        bot.setControlState('forward', true); // Always use forward since we handle direction by turning
+                        // Apply movement controls
+                        bot.setControlState('sprint', sprintChance);
+                        bot.setControlState('forward', true);
+                        
+                        if (jumpWhileMoving) {
+                                bot.setControlState('jump', true);
+                        }
+                        if (sneakWhileMoving) {
+                                bot.setControlState('sneak', true);
+                        }
 
-                        await sleep(CONFIG.action.holdDuration);
+                        // Variable movement duration for more natural feel
+                        const moveDuration = CONFIG.action.holdDuration + (Math.random() - 0.5) * 200; // ±100ms variation
+                        await sleep(Math.max(200, moveDuration)); // Ensure minimum 200ms
                         bot.clearControlStates();
                         } finally {
                                 isMoving = false;
@@ -525,8 +597,9 @@ const createBot = (): void => {
                 
                 // Clean up intervals when bot ends
                 bot.once('end', () => {
-                        clearInterval(lookAroundInterval);
-                        clearInterval(chatInterval);
+                        if (lookAroundInterval) clearInterval(lookAroundInterval);
+                        if (chatInterval) clearInterval(chatInterval);
+                        if (loop) clearInterval(loop);
                 });
         });
         bot.once('login', () => {
