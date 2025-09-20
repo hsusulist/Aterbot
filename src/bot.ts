@@ -167,7 +167,7 @@ const createBot = (): void => {
                                 }
                                 
                                 attempts++;
-                                await sleep(300); // Short delay between turns
+                                await sleep(100); // Short delay between turns
                         }
                         
                         if (attempts >= 8) {
