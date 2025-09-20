@@ -108,6 +108,15 @@ const createBot = (): void => {
                                 console.log(`🔍 Still waiting for response from ${serverQuestionAsker}, got message from ${username}`);
                         }
                         
+                        // Filter out system/plugin messages FIRST (ignore messages from bots/plugins)
+                        const systemUsernames = ['grim', 'clearlag', 'fastlogin', 'owner', 'console', 'server', 'authme', 'essentials'];
+                        const isSystemMessage = systemUsernames.some(sys => username.toLowerCase().includes(sys.toLowerCase()));
+                        
+                        if (isSystemMessage) {
+                                // Don't respond to system/plugin messages
+                                return;
+                        }
+                        
                         // Check if waiting for server love response
                         if (waitingForServerResponse && username === serverQuestionAsker) {
                                 const response = message.toLowerCase().trim();
@@ -131,15 +140,6 @@ const createBot = (): void => {
                                         console.log(`❓ Unknown response from ${username}: "${response}"`);
                                         bot.chat(`${username} just say yes or no! do u love the server?`);
                                 }
-                                return;
-                        }
-                        
-                        // Filter out system/plugin messages (ignore messages from bots/plugins)
-                        const systemUsernames = ['grim', 'clearlag', 'fastlogin', 'owner', 'console', 'server', 'authme', 'essentials'];
-                        const isSystemMessage = systemUsernames.some(sys => username.toLowerCase().includes(sys.toLowerCase()));
-                        
-                        if (isSystemMessage) {
-                                // Don't respond to system/plugin messages
                                 return;
                         }
                         
@@ -435,8 +435,19 @@ const createBot = (): void => {
                 const changePos = async (): Promise<void> => {
                         // Prevent overlapping movements or if standing still waiting for answer
                         if (isMoving || isStandingStill || waitingForServerResponse) {
-                                if (waitingForServerResponse) {
-                                        console.log('🤖 Standing still, waiting for player response...');
+                                if (waitingForServerResponse && isStandingStill) {
+                                        // Look at the player while waiting for response
+                                        const targetPlayer = Object.values(bot.players).find(player => 
+                                                player.username && 
+                                                player.username.toLowerCase() === serverQuestionAsker.toLowerCase() &&
+                                                player.entity
+                                        );
+                                        if (targetPlayer) {
+                                                bot.lookAt(targetPlayer.entity.position.offset(0, targetPlayer.entity.height, 0));
+                                                console.log('👀 Looking at player while waiting for response...');
+                                        } else {
+                                                console.log('🤖 Standing still, waiting for player response...');
+                                        }
                                 }
                                 return;
                         }
