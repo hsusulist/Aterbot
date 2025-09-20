@@ -113,7 +113,7 @@ const createBot = (): void => {
                                 const response = message.toLowerCase().trim();
                                 console.log(`🔍 Checking response "${response}" from ${username}`);
                                 
-                                if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup')) {
+                                if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup') || response.includes('hi') || response.includes('hello') || response.includes('hey')) {
                                         console.log(`😊 ${username} loves the server! Responding positively.`);
                                         bot.chat(`me too i love it! thanks ${username}! 😊`);
                                         waitingForServerResponse = false;
@@ -240,7 +240,7 @@ const createBot = (): void => {
                                                 // Process the response using same logic
                                                 const response = message.toLowerCase().trim();
                                                 
-                                                if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup')) {
+                                                if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup') || response.includes('hi') || response.includes('hello') || response.includes('hey')) {
                                                         console.log(`😊 ${username} loves the server! (via fallback)`);
                                                         bot.chat(`me too i love it! thanks ${username}! 😊`);
                                                         waitingForServerResponse = false;
