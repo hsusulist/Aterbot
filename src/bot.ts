@@ -97,10 +97,20 @@ const createBot = (): void => {
                                 return;
                         }
                         
-                        // Check if someone is greeting the bot directly
+                        // Filter out system/plugin messages (ignore messages from bots/plugins)
+                        const systemUsernames = ['grim', 'clearlag', 'fastlogin', 'owner', 'console', 'server', 'authme', 'essentials'];
+                        const isSystemMessage = systemUsernames.some(sys => username.toLowerCase().includes(sys.toLowerCase()));
+                        
+                        if (isSystemMessage) {
+                                // Don't respond to system/plugin messages
+                                return;
+                        }
+                        
+                        // Check if someone is greeting the bot directly (only real players)
                         const botGreeting = message.toLowerCase().match(/\b(hi|hello|hey)\b.*\b(afk|bot|afkbot)\b/i) || 
                                           message.toLowerCase().match(/^(hi|hello|hey)$/i) ||
-                                          message.toLowerCase().includes(bot.username.toLowerCase());
+                                          (message.toLowerCase().includes(bot.username.toLowerCase()) && 
+                                           message.toLowerCase().match(/\b(hi|hello|hey|sup|yo)\b/i));
                         
                         if (botGreeting) {
                                 console.log(`👋 ${username} is greeting the bot! Responding and moving to them...`);
