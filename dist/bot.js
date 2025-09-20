@@ -1,4 +1,5 @@
 import Mineflayer from 'mineflayer';
+import { Vec3 } from 'vec3';
 import { sleep, getRandom } from "./utils.js";
 import CONFIG from "../config.json" with { type: 'json' };
 let loop;
@@ -293,70 +294,177 @@ const createBot = () => {
             );
             return players.length > 0 ? players[Math.floor(Math.random() * players.length)] : null;
         };
-        const isWallInDirection = (relativeDirection) => {
-            const currentPos = bot.entity.position;
+        // Enhanced block scanning system for natural player navigation
+        const scanNearbyBlocks = () => {
+            const position = bot.entity.position;
             const yaw = bot.entity.yaw;
-            // Calculate correct direction vectors based on bot's orientation
-            let offsetX = 0, offsetZ = 0;
-            switch (relativeDirection) {
-                case 'forward':
-                    offsetX = -Math.sin(yaw);
-                    offsetZ = -Math.cos(yaw);
-                    break;
-                case 'back':
-                    offsetX = Math.sin(yaw);
-                    offsetZ = Math.cos(yaw);
-                    break;
-                case 'left':
-                    offsetX = -Math.cos(yaw);
-                    offsetZ = Math.sin(yaw);
-                    break;
-                case 'right':
-                    offsetX = Math.cos(yaw);
-                    offsetZ = -Math.sin(yaw);
-                    break;
-                default:
-                    return false;
-            }
-            // Check both foot level and head level
-            const checkPosFeet = currentPos.offset(offsetX, 0, offsetZ);
-            const checkPosHead = currentPos.offset(offsetX, 1, offsetZ);
-            const blockFeet = bot.blockAt(checkPosFeet);
-            const blockHead = bot.blockAt(checkPosHead);
-            // Check if blocks are solid
-            const feetSolid = blockFeet && blockFeet.boundingBox === 'block';
-            const headSolid = blockHead && blockHead.boundingBox === 'block';
-            // If only feet level is blocked (head is clear), it might be stairs - try to jump ONCE
-            if (feetSolid && !headSolid && !isMoving) {
-                console.log('🪜 Stairs detected! Jumping up...');
-                return false; // Don't treat as wall, let normal movement handle it
-            }
-            // True wall if both levels are blocked
-            return Boolean(feetSolid || headSolid);
-        };
-        const avoidWall = async () => {
-            console.log('🧱 Wall detected! Turning right until clear...');
-            // Keep turning right until we find a clear direction
-            let attempts = 0;
-            while (attempts < 8) { // Max 8 attempts (45 degrees each = 360 degrees)
-                const currentYaw = bot.entity.yaw;
-                const newYaw = currentYaw + (Math.PI / 4); // Turn right 45 degrees
-                await bot.look(newYaw, 0, true);
-                // Check if path is clear in front after turning
-                if (!isWallInDirection('forward')) {
-                    console.log('✅ Found clear path after turning right!');
-                    return; // Exit immediately when clear path found
+            const scanRange = 5; // Scan 5 blocks ahead in each direction
+            const results = {
+                forward: { safe: true, distance: scanRange, hasCliff: false, hasWater: false, hasLava: false, canJump: false },
+                left: { safe: true, distance: scanRange, hasCliff: false, hasWater: false, hasLava: false, canJump: false },
+                right: { safe: true, distance: scanRange, hasCliff: false, hasWater: false, hasLava: false, canJump: false },
+                back: { safe: true, distance: scanRange, hasCliff: false, hasWater: false, hasLava: false, canJump: false }
+            };
+            // Direction vectors based on bot's current yaw
+            const directions = {
+                forward: { x: -Math.sin(yaw), z: -Math.cos(yaw) },
+                left: { x: -Math.cos(yaw), z: Math.sin(yaw) },
+                right: { x: Math.cos(yaw), z: -Math.sin(yaw) },
+                back: { x: Math.sin(yaw), z: Math.cos(yaw) }
+            };
+            // Scan each direction
+            Object.entries(directions).forEach(([dirName, dir]) => {
+                for (let i = 1; i <= scanRange; i++) {
+                    const checkX = position.x + (dir.x * i);
+                    const checkZ = position.z + (dir.z * i);
+                    const checkY = Math.floor(position.y);
+                    // Check blocks at foot level, head level, and ground level
+                    const blockPosFeet = new Vec3(Math.floor(checkX), checkY, Math.floor(checkZ));
+                    const blockPosHead = new Vec3(Math.floor(checkX), checkY + 1, Math.floor(checkZ));
+                    const blockPosGround = new Vec3(Math.floor(checkX), checkY - 1, Math.floor(checkZ));
+                    const blockPosFarGround = new Vec3(Math.floor(checkX), checkY - 2, Math.floor(checkZ));
+                    const blockFeet = bot.blockAt(blockPosFeet);
+                    const blockHead = bot.blockAt(blockPosHead);
+                    const blockGround = bot.blockAt(blockPosGround);
+                    const blockFarGround = bot.blockAt(blockPosFarGround);
+                    // Check for solid walls (blocks at feet or head level)
+                    const feetSolid = blockFeet && blockFeet.boundingBox === 'block';
+                    const headSolid = blockHead && blockHead.boundingBox === 'block';
+                    // Special case: If only feet is blocked but head is clear, it might be jumpable
+                    if (feetSolid && !headSolid) {
+                        results[dirName].canJump = true;
+                        // Don't mark as unsafe yet, player can jump over 1-block obstacles
+                        if (i === 1)
+                            continue; // Allow jumping over first block
+                    }
+                    // Wall detected if both levels blocked or head blocked
+                    if ((feetSolid && headSolid) || headSolid) {
+                        results[dirName].safe = false;
+                        results[dirName].distance = i - 1;
+                        break;
+                    }
+                    // Check for cliffs (no ground for 2+ blocks down)
+                    const groundSolid = blockGround && blockGround.boundingBox === 'block';
+                    const farGroundSolid = blockFarGround && blockFarGround.boundingBox === 'block';
+                    if (!groundSolid && !farGroundSolid) {
+                        results[dirName].hasCliff = true;
+                        results[dirName].safe = false;
+                        results[dirName].distance = i - 1;
+                        break;
+                    }
+                    // Check for dangerous liquids
+                    if (blockFeet) {
+                        if (blockFeet.name.includes('lava') || blockFeet.name === 'lava') {
+                            results[dirName].hasLava = true;
+                            results[dirName].safe = false;
+                            results[dirName].distance = i - 1;
+                            break;
+                        }
+                        if (blockFeet.name === 'water' || blockFeet.name === 'flowing_water') {
+                            results[dirName].hasWater = true;
+                            // Water is not immediately unsafe, just note it
+                        }
+                    }
                 }
-                attempts++;
-                await sleep(100); // Short delay between turns
+            });
+            return results;
+        };
+        // Find the best direction to move based on scanned blocks (like a smart player would)
+        const findBestDirection = (scanResults) => {
+            const directions = ['forward', 'left', 'right', 'back'];
+            let bestDirection = 'forward';
+            let bestScore = -999;
+            console.log('🔍 Analyzing path options...');
+            directions.forEach(dir => {
+                const result = scanResults[dir];
+                let score = 0;
+                let description = '';
+                // Base score on safe distance (further is better)
+                score += result.distance * 15;
+                description += `distance:${result.distance}`;
+                // Big bonus for being completely safe
+                if (result.safe) {
+                    score += 100;
+                    description += ' safe';
+                }
+                else {
+                    description += ' blocked';
+                }
+                // Handle specific hazards
+                if (result.hasCliff) {
+                    score -= 80;
+                    description += ' cliff!';
+                }
+                if (result.hasLava) {
+                    score -= 200;
+                    description += ' lava!';
+                }
+                if (result.hasWater) {
+                    score -= 20;
+                    description += ' water';
+                }
+                if (result.canJump) {
+                    score += 30; // Bonus for jumpable obstacles
+                    description += ' jumpable';
+                }
+                // Natural player preferences
+                if (dir === 'forward') {
+                    score += 40; // Strong preference for going forward
+                    description += ' (preferred)';
+                }
+                if (dir === 'left' || dir === 'right') {
+                    score += 20; // Moderate preference for sides over backward
+                }
+                console.log(`  ${dir}: ${description} (score: ${score})`);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestDirection = dir;
+                }
+            });
+            console.log(`🎯 Best direction: ${bestDirection} (score: ${bestScore})`);
+            return { direction: bestDirection, score: bestScore, scanResults };
+        };
+        // Legacy function for compatibility - now uses enhanced scanning
+        const isWallInDirection = (relativeDirection) => {
+            const scanResults = scanNearbyBlocks();
+            const result = scanResults[relativeDirection];
+            return !result || !result.safe;
+        };
+        const smartAvoidWall = async () => {
+            console.log('🧱 Obstacle detected! Using intelligent pathfinding...');
+            // Scan all directions to find the best path
+            const scanResults = scanNearbyBlocks();
+            const bestPath = findBestDirection(scanResults);
+            // If we found a good direction, turn towards it
+            if (bestPath.direction !== 'forward') {
+                let targetYaw = bot.entity.yaw;
+                switch (bestPath.direction) {
+                    case 'left':
+                        targetYaw -= Math.PI / 2; // Turn left 90 degrees
+                        break;
+                    case 'right':
+                        targetYaw += Math.PI / 2; // Turn right 90 degrees
+                        break;
+                    case 'back':
+                        targetYaw += Math.PI; // Turn around 180 degrees
+                        break;
+                }
+                console.log(`🎯 Turning ${bestPath.direction} (score: ${bestPath.score})`);
+                await bot.look(targetYaw, 0, true);
+                // If the best path involves jumping over obstacles, prepare to jump
+                if (bestPath.scanResults[bestPath.direction].canJump) {
+                    console.log('🦘 Preparing to jump over obstacle...');
+                    await sleep(200); // Brief pause before jumping
+                    bot.setControlState('jump', true);
+                    await sleep(300);
+                    bot.setControlState('jump', false);
+                }
             }
-            if (attempts >= 8) {
-                console.log('⚠️ Stuck! Jumping and moving forward to clear obstacle...');
-                bot.setControlState('jump', true);
-                bot.setControlState('forward', true);
-                await sleep(800);
-                bot.clearControlStates();
-            }
+            return; // Exit and let normal movement continue
+        };
+        // Legacy function for backward compatibility
+        const avoidWall = async () => {
+            await smartAvoidWall();
         };
         // Movement lock to prevent overlapping movements
         let isMoving = false;
