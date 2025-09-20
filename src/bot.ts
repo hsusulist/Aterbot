@@ -289,9 +289,9 @@ const createBot = (): void => {
                         isMoving = true;
                         
                         try {
-                        // 1% chance to spot and follow a player (only when not already following) with 15-second cooldown
+                        // 10% chance to spot and follow a player (only when not already following) with 5-second cooldown
                         const now = Date.now();
-                        if (!isFollowingPlayer && Math.random() < 0.01 && (now - lastPlayerCheckTime) > 15000) {
+                        if (!isFollowingPlayer && Math.random() < 0.10 && (now - lastPlayerCheckTime) > 5000) {
                                 lastPlayerCheckTime = now;
                                 const nearbyPlayer = findNearbyPlayer();
                                 if (nearbyPlayer && nearbyPlayer.username !== lastPlayerDetected) {
