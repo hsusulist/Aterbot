@@ -99,15 +99,17 @@ const createBot = (): void => {
                 
                 // Listen for chat messages to detect "hi [playername]" commands
                 bot.on('chat', (username, message) => {
+                        // ALWAYS LOG ALL CHAT MESSAGES (as requested by user)
+                        console.log(`🗨️ CHAT: ${username}: ${message}`);
+                        console.log(`🔧 DEBUG: waitingForServerResponse=${waitingForServerResponse}, serverQuestionAsker="${serverQuestionAsker}"`);
+                        
                         // Don't react to our own messages
                         if (username === bot.username) return;
                         
-                        console.log(`💬 ${username}: ${message}`);
-                        console.log(`🔧 DEBUG: waitingForServerResponse=${waitingForServerResponse}, serverQuestionAsker="${serverQuestionAsker}"`);
-                        
-                        // Additional chat listener for better coverage
+                        // Additional debugging for waiting state
                         if (waitingForServerResponse) {
-                                console.log(`🔍 Still waiting for response from ${serverQuestionAsker}, got message from ${username}`);
+                                console.log(`🔍 WAITING FOR RESPONSE from "${serverQuestionAsker}", got message from "${username}"`);
+                                console.log(`🔍 Case-insensitive check: "${username.toLowerCase()}" === "${serverQuestionAsker.toLowerCase()}" = ${username.toLowerCase() === serverQuestionAsker.toLowerCase()}`);
                         }
                         
                         // Filter out system/plugin messages FIRST (ignore messages from bots/plugins)
@@ -115,12 +117,12 @@ const createBot = (): void => {
                         const isSystemMessage = systemUsernames.some(sys => username.toLowerCase().includes(sys.toLowerCase()));
                         
                         if (isSystemMessage) {
-                                // Don't respond to system/plugin messages
+                                console.log(`🤖 SYSTEM MESSAGE - ignoring: ${username}: ${message}`);
                                 return;
                         }
                         
-                        // Check if waiting for server love response
-                        if (waitingForServerResponse && username === serverQuestionAsker) {
+                        // Check if waiting for server love response (FIXED: case-insensitive comparison)
+                        if (waitingForServerResponse && username.toLowerCase() === serverQuestionAsker.toLowerCase()) {
                                 const response = message.toLowerCase().trim();
                                 console.log(`🔍 Checking response "${response}" from ${username}`);
                                 
@@ -242,14 +244,23 @@ const createBot = (): void => {
                 bot.on('message', (jsonMsg) => {
                         try {
                                 const msgText = jsonMsg.toString();
+                                console.log(`📄 RAW MESSAGE: ${msgText}`);
                                 
                                 // Extract username and message from various formats
                                 const chatMatch = msgText.match(/<([^>]+)>\s*(.+)|([^:]+):\s*(.+)/);
-                                if (chatMatch && waitingForServerResponse) {
+                                if (chatMatch) {
                                         const username = chatMatch[1] || chatMatch[3];
                                         const message = chatMatch[2] || chatMatch[4];
                                         
-                                        if (username && message && username.toLowerCase() === serverQuestionAsker.toLowerCase()) {
+                                        if (username && message) {
+                                                console.log(`📧 PARSED MESSAGE: ${username}: ${message}`);
+                                                
+                                                if (waitingForServerResponse) {
+                                                        console.log(`🔄 FALLBACK: Checking if "${username.toLowerCase()}" === "${serverQuestionAsker.toLowerCase()}"`);
+                                                }
+                                        }
+                                        
+                                        if (waitingForServerResponse && username && message && username.toLowerCase() === serverQuestionAsker.toLowerCase()) {
                                                 console.log(`🔄 FALLBACK: Detected response from ${username}: "${message}"`);
                                                 // Process the response using same logic
                                                 const response = message.toLowerCase().trim();
@@ -411,16 +422,16 @@ const createBot = (): void => {
                                         waitingForServerResponse = true;
                                         serverQuestionAsker = followingPlayerName;
                                         
-                                        // Set 7-second timer - bot stands still and waits
-                                        console.log(`⏱️ Waiting 7 seconds for ${followingPlayerName} to answer...`);
+                                        // Set 20-second timer - bot stands still and waits (increased from 7 seconds)
+                                        console.log(`⏱️ Waiting 20 seconds for ${followingPlayerName} to answer...`);
                                         isStandingStill = true;
                                         responseTimeout = setTimeout(() => {
-                                                console.log(`⏰ 7-second timeout - stopping wait for ${serverQuestionAsker}`);
+                                                console.log(`⏰ 20-second timeout - stopping wait for ${serverQuestionAsker}`);
                                                 waitingForServerResponse = false;
                                                 isStandingStill = false;
                                                 serverQuestionAsker = '';
                                                 responseTimeout = null;
-                                        }, 7000);
+                                        }, 20000);
                                 } catch (error) {
                                         console.log(`❌ Chat error: ${error}`);
                                         bot.chat(`Hello ${followingPlayerName}!`);
