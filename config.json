@@ -1,7 +1,7 @@
 {
         "client": {
-                "host": "server_ip",
-                "port": "server_port",
+                "host": "Ashtrails.aternos.me",
+                "port": "50319",
                 "username": "Bot_name",
                 "password": "bot_password",
                 "isRegistered": false,
