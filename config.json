@@ -25,7 +25,7 @@
         "logLevel": ["error", "log", "debug"],
         "action": {
                 "commands": ["forward", "back", "left", "right", "jump"],
-                "holdDuration": 500,
+                "holdDuration": 120,
                 "retryDelay": 15000
         }
 }
