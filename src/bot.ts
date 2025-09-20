@@ -95,22 +95,21 @@ const createBot = (): void => {
                         // Check if waiting for server love response
                         if (waitingForServerResponse && username === serverQuestionAsker) {
                                 const response = message.toLowerCase().trim();
-                                if (response === 'yes' || response === 'y') {
+                                console.log(`🔍 Checking response "${response}" from ${username}`);
+                                
+                                if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love')) {
                                         console.log(`😊 ${username} loves the server! Responding positively.`);
-                                        bot.chat('me too i loved it');
+                                        bot.chat(`me too i love it! thanks ${username}! 😊`);
                                         waitingForServerResponse = false;
                                         serverQuestionAsker = '';
-                                } else if (response === 'no' || response === 'n') {
+                                } else if (response.includes('no') || response === 'n' || response.includes('hate') || response.includes('bad')) {
                                         console.log(`😡 ${username} doesn't love the server. Getting angry!`);
-                                        bot.chat('IF U HATE THIS SERVER THEN GET OUT I HATE U');
-                                        isStandingStill = true;
+                                        bot.chat(`${username} why do u hate this server? u should try to love it more! 😢`);
                                         waitingForServerResponse = false;
                                         serverQuestionAsker = '';
-                                        // Stand still for 10 seconds, then resume
-                                        setTimeout(() => {
-                                                console.log('💭 Resuming movement after standing still.');
-                                                isStandingStill = false;
-                                        }, 10000);
+                                } else {
+                                        console.log(`❓ Unknown response from ${username}: "${response}"`);
+                                        bot.chat(`${username} just say yes or no! do u love the server?`);
                                 }
                                 return;
                         }
@@ -211,7 +210,7 @@ const createBot = (): void => {
                         const players = Object.values(bot.players).filter(player => 
                                 player.entity && 
                                 player.username !== bot.username &&
-                                player.entity.position.distanceTo(bot.entity.position) <= 30 // Within 30 blocks
+                                player.entity.position.distanceTo(bot.entity.position) <= 60 // Increased to 60 blocks
                         );
                         return players.length > 0 ? players[Math.floor(Math.random() * players.length)] : null;
                 };
@@ -460,9 +459,9 @@ const createBot = (): void => {
                                 console.log(`🎲 Will move ${targetDistance} steps in this direction`);
                         }
                         
-                        // Random chance to pause and do something (10% chance)
+                        // Random chance to pause and do something (10% chance) - NO MORE SNEAKING
                         if (Math.random() < 0.10) {
-                                const actions = ['pause', 'jump', 'sneak', 'spin'];
+                                const actions = ['pause', 'jump', 'spin'];
                                 const action = getRandom(actions);
                                 
                                 switch(action) {
@@ -475,12 +474,6 @@ const createBot = (): void => {
                                                 bot.setControlState('jump', true);
                                                 await sleep(300);
                                                 bot.setControlState('jump', false);
-                                                break;
-                                        case 'sneak':
-                                                console.log('🤫 Sneaking for a moment...');
-                                                bot.setControlState('sneak', true);
-                                                await sleep(500 + Math.random() * 1000);
-                                                bot.setControlState('sneak', false);
                                                 break;
                                         case 'spin':
                                                 console.log('🌀 Spinning around!');
@@ -497,12 +490,11 @@ const createBot = (): void => {
                                 return; // Skip this movement cycle to allow the new direction to take effect
                         }
                         
-                        // Random movement variations
+                        // Random movement variations - NO MORE RANDOM SNEAKING
                         const sprintChance = Math.random() < 0.4; // 40% chance to sprint
                         const jumpWhileMoving = Math.random() < 0.08; // 8% chance to jump while moving
-                        const sneakWhileMoving = Math.random() < 0.05; // 5% chance to sneak while moving
                         
-                        console.log(`🚶 Moving${sprintChance ? " (sprinting)" : ""}${jumpWhileMoving ? " (jumping)" : ""}${sneakWhileMoving ? " (sneaking)" : ""} (Step ${moveCount})`);
+                        console.log(`🚶 Moving${sprintChance ? " (sprinting)" : ""}${jumpWhileMoving ? " (jumping)" : ""} (Step ${moveCount})`);
 
                         // Apply movement controls
                         bot.setControlState('sprint', sprintChance);
@@ -510,9 +502,6 @@ const createBot = (): void => {
                         
                         if (jumpWhileMoving) {
                                 bot.setControlState('jump', true);
-                        }
-                        if (sneakWhileMoving) {
-                                bot.setControlState('sneak', true);
                         }
 
                         // Variable movement duration for more natural feel
