@@ -84,10 +84,27 @@ const createBot = () => {
         let responseTimeout = null;
         let currentSprintState = false; // Track sprint state to reduce toggling
         let lastJumpTime = 0; // Track last jump time for cooldowns
-        // Chat message every 5 minutes
+        // Ask closest player about server love every 5 minutes
         const chatInterval = setInterval(() => {
-            console.log('Sending love message...');
-            bot.chat('wow I love this server');
+            const closestPlayer = getClosestPlayer(30);
+            if (closestPlayer && !waitingForServerResponse) {
+                console.log(`Asking closest player ${closestPlayer.username} about server love...`);
+                bot.chat(`${closestPlayer.username}, do u love the server?`);
+                waitingForServerResponse = true;
+                serverQuestionAsker = closestPlayer.username;
+                // Set timeout to clear waiting state if no response
+                if (responseTimeout)
+                    clearTimeout(responseTimeout);
+                responseTimeout = setTimeout(() => {
+                    console.log('No response received, resuming normal behavior');
+                    waitingForServerResponse = false;
+                    serverQuestionAsker = '';
+                }, 30000); // 30 second timeout
+            }
+            else {
+                console.log('No players nearby or waiting for response, sending general love message...');
+                bot.chat('wow I love this server');
+            }
         }, 5 * 60 * 1000); // 5 minutes
         // Listen for chat messages to detect "hi [playername]" commands
         bot.on('chat', (username, message) => {
@@ -152,11 +169,19 @@ const createBot = () => {
                     player.username.toLowerCase() === username.toLowerCase() &&
                     player.entity &&
                     player.username !== bot.username);
-                if (greetingPlayer) {
-                    // Set following state to go to the person who greeted us
+                let targetPlayer = greetingPlayer;
+                // If we can't find the greeter, use the closest player as fallback
+                if (!targetPlayer) {
+                    targetPlayer = getClosestPlayer(30);
+                    if (targetPlayer) {
+                        console.log(`Could not find ${username}, targeting closest player: ${targetPlayer.username}`);
+                    }
+                }
+                if (targetPlayer) {
+                    // Set following state to go to the target player
                     isFollowingPlayer = true;
-                    targetPlayerPosition = greetingPlayer.entity.position.clone();
-                    followingPlayerName = greetingPlayer.username;
+                    targetPlayerPosition = targetPlayer.entity.position.clone();
+                    followingPlayerName = targetPlayer.username;
                     originalPosition = bot.entity.position.clone();
                     // Respond with exact greeting format
                     const isExactBotGreeting = message.toLowerCase().includes('hi afkbot123') ||
@@ -174,8 +199,8 @@ const createBot = () => {
                     bot.chat(randomResponse);
                 }
                 else {
-                    // Even if we can't find them, still respond
-                    bot.chat(`Hi ${username}! I hear you but can't see you!`);
+                    // No players found at all
+                    bot.chat(`Hi ${username}! I hear you but can't see anyone nearby!`);
                 }
                 return;
             }
@@ -213,7 +238,21 @@ const createBot = () => {
                     }
                 }
                 else {
-                    console.log(`❓ Player '${targetPlayerName}' not found or not online`);
+                    // Fallback to closest player if target not found
+                    const closestPlayer = getClosestPlayer(30);
+                    if (closestPlayer) {
+                        console.log(`❓ Player '${targetPlayerName}' not found, targeting closest player: ${closestPlayer.username}`);
+                        // Set following state for closest player
+                        isFollowingPlayer = true;
+                        targetPlayerPosition = closestPlayer.entity.position.clone();
+                        followingPlayerName = closestPlayer.username;
+                        originalPosition = bot.entity.position.clone();
+                        bot.chat(`Hi ${closestPlayer.username}! (${targetPlayerName} not found, but coming to you!)`);
+                    }
+                    else {
+                        console.log(`❓ Player '${targetPlayerName}' not found and no players nearby`);
+                        bot.chat(`Hi! I want to find ${targetPlayerName} but they're not around and I don't see anyone nearby!`);
+                    }
                 }
             }
         });
@@ -287,12 +326,57 @@ const createBot = () => {
                 // Ignore parsing errors
             }
         });
-        const findNearbyPlayer = () => {
+        // Helper function to get the closest player within range
+        const getClosestPlayer = (range = 30, requireEntity = true, excludeSelf = true) => {
             const players = Object.values(bot.players).filter(player => player.entity &&
-                player.username !== bot.username &&
-                player.entity.position.distanceTo(bot.entity.position) <= 60 // Increased to 60 blocks
-            );
-            return players.length > 0 ? players[Math.floor(Math.random() * players.length)] : null;
+                (excludeSelf ? player.username !== bot.username : true) &&
+                player.entity.position.distanceTo(bot.entity.position) <= range);
+            if (players.length === 0)
+                return null;
+            // Sort by distance and return the closest
+            players.sort((a, b) => {
+                const distA = a.entity.position.distanceTo(bot.entity.position);
+                const distB = b.entity.position.distanceTo(bot.entity.position);
+                return distA - distB;
+            });
+            return players[0];
+        };
+        // Legacy function for compatibility - now uses closest player
+        const findNearbyPlayer = () => getClosestPlayer(60);
+        // Smooth turning system to prevent jerky movement
+        let lastYaw = 0;
+        let lastPitch = 0;
+        let targetLockUntil = 0;
+        const smoothLookTo = (targetPos, maxYawStep = 0.2, maxPitchStep = 0.15, deadZone = 0.05) => {
+            if (!bot.entity || !targetPos)
+                return false;
+            const dx = targetPos.x - bot.entity.position.x;
+            const dy = targetPos.y - bot.entity.position.y;
+            const dz = targetPos.z - bot.entity.position.z;
+            // Calculate target yaw and pitch
+            const targetYaw = Math.atan2(-dx, -dz);
+            const distance = Math.sqrt(dx * dx + dz * dz);
+            const targetPitch = Math.atan2(-dy, distance);
+            // Calculate yaw difference (handle wrapping)
+            let yawDiff = targetYaw - bot.entity.yaw;
+            while (yawDiff > Math.PI)
+                yawDiff -= 2 * Math.PI;
+            while (yawDiff < -Math.PI)
+                yawDiff += 2 * Math.PI;
+            // Calculate pitch difference
+            let pitchDiff = targetPitch - bot.entity.pitch;
+            // Only adjust if outside dead zone
+            if (Math.abs(yawDiff) > deadZone || Math.abs(pitchDiff) > deadZone) {
+                // Limit rotation speed
+                const yawStep = Math.sign(yawDiff) * Math.min(Math.abs(yawDiff), maxYawStep);
+                const pitchStep = Math.sign(pitchDiff) * Math.min(Math.abs(pitchDiff), maxPitchStep);
+                const newYaw = bot.entity.yaw + yawStep;
+                const newPitch = bot.entity.pitch + pitchStep;
+                bot.look(newYaw, newPitch);
+                // Return true if we're still turning (outside of smaller precision zone)
+                return Math.abs(yawDiff) > 0.1 || Math.abs(pitchDiff) > 0.1;
+            }
+            return false; // Not turning
         };
         // Enhanced block scanning system for natural player navigation
         const scanNearbyBlocks = () => {
@@ -435,22 +519,30 @@ const createBot = () => {
             // Scan all directions to find the best path
             const scanResults = scanNearbyBlocks();
             const bestPath = findBestDirection(scanResults);
-            // If we found a good direction, turn towards it
+            // If we found a good direction, turn towards it smoothly
             if (bestPath.direction !== 'forward') {
-                let targetYaw = bot.entity.yaw;
+                let angleChange = 0;
                 switch (bestPath.direction) {
                     case 'left':
-                        targetYaw -= Math.PI / 2; // Turn left 90 degrees
+                        angleChange = -Math.PI / 2; // Turn left 90 degrees
                         break;
                     case 'right':
-                        targetYaw += Math.PI / 2; // Turn right 90 degrees
+                        angleChange = Math.PI / 2; // Turn right 90 degrees
                         break;
                     case 'back':
-                        targetYaw += Math.PI; // Turn around 180 degrees
+                        angleChange = Math.PI; // Turn around 180 degrees
                         break;
                 }
                 console.log(`🎯 Turning ${bestPath.direction} (score: ${bestPath.score})`);
-                await bot.look(targetYaw, 0, true);
+                // Calculate target position for smooth turning
+                const targetYaw = bot.entity.yaw + angleChange;
+                const pathTarget = {
+                    x: bot.entity.position.x + Math.sin(-targetYaw) * 10,
+                    y: bot.entity.position.y,
+                    z: bot.entity.position.z + Math.cos(-targetYaw) * 10
+                };
+                // Use smooth turning with moderate speed for pathfinding
+                smoothLookTo(pathTarget, 0.25, 0.15, 0.05);
                 // If the best path involves jumping over obstacles, prepare to jump
                 if (bestPath.scanResults[bestPath.direction].canJump) {
                     console.log('🦘 Preparing to jump over obstacle...');
@@ -472,9 +564,18 @@ const createBot = () => {
             const botPos = bot.entity.position;
             const dx = targetPos.x - botPos.x;
             const dz = targetPos.z - botPos.z;
-            // Look towards target first
-            const yaw = Math.atan2(-dx, -dz);
-            await bot.look(yaw, 0, true);
+            // Look towards target smoothly
+            const lookTarget = {
+                x: targetPlayerPosition.x,
+                y: targetPlayerPosition.y,
+                z: targetPlayerPosition.z
+            };
+            const isStillTurning = smoothLookTo(lookTarget, 0.3, 0.2, 0.08);
+            // If we're still turning significantly, don't start moving yet
+            if (isStillTurning) {
+                console.log('🔄 Still turning towards player, waiting to finish turn...');
+                return;
+            }
             // After looking at target, check if forward path is blocked
             if (isWallInDirection('forward')) {
                 console.log('🧱 Wall blocking path to player! Avoiding wall and returning to normal movement...');
@@ -617,7 +718,14 @@ const createBot = () => {
                     }
                     if (angleChange !== 0) {
                         const currentYaw = bot.entity.yaw;
-                        await bot.look(currentYaw + angleChange, 0, true);
+                        const targetYaw = currentYaw + angleChange;
+                        const directionTarget = {
+                            x: bot.entity.position.x + Math.sin(-targetYaw) * 10,
+                            y: bot.entity.position.y,
+                            z: bot.entity.position.z + Math.cos(-targetYaw) * 10
+                        };
+                        // Use smooth turning instead of instant snap
+                        smoothLookTo(directionTarget, 0.15, 0.1, 0.03);
                     }
                     // Reset movement counter with random distance (30-80 moves - much longer!)
                     targetDistance = 30 + Math.floor(Math.random() * 50);
@@ -643,7 +751,14 @@ const createBot = () => {
                             console.log('🌀 Spinning around!');
                             const currentYaw = bot.entity.yaw;
                             const randomSpin = Math.random() * Math.PI * 2; // Random full spin
-                            await bot.look(currentYaw + randomSpin, 0, true);
+                            const targetYaw = currentYaw + randomSpin;
+                            const spinTarget = {
+                                x: bot.entity.position.x + Math.sin(-targetYaw) * 10,
+                                y: bot.entity.position.y,
+                                z: bot.entity.position.z + Math.cos(-targetYaw) * 10
+                            };
+                            // Use slower smooth turning for spinning
+                            smoothLookTo(spinTarget, 0.4, 0.3, 0.05);
                             break;
                     }
                 }
@@ -684,13 +799,16 @@ const createBot = () => {
                 // Very subtle head movements - much less frequent 
                 if (Math.random() < 0.05) { // Only 5% chance for very natural feel
                     const currentYaw = bot.entity.yaw;
-                    const currentPitch = bot.entity.pitch;
                     // Tiny, realistic head adjustments
-                    const yawAdjustment = (Math.random() - 0.5) * 0.2; // ±6 degrees (very small)
-                    const pitchAdjustment = (Math.random() - 0.5) * 0.15; // ±4 degrees
-                    const newYaw = currentYaw + yawAdjustment;
-                    const newPitch = Math.max(-1.0, Math.min(1.0, currentPitch + pitchAdjustment));
-                    bot.look(newYaw, newPitch, false);
+                    const yawAdjustment = (Math.random() - 0.5) * 0.15; // Reduced for smoother feel
+                    const targetYaw = currentYaw + yawAdjustment;
+                    const headTarget = {
+                        x: bot.entity.position.x + Math.sin(-targetYaw) * 10,
+                        y: bot.entity.position.y + (Math.random() - 0.5) * 2, // Small vertical look
+                        z: bot.entity.position.z + Math.cos(-targetYaw) * 10
+                    };
+                    // Very gentle smooth head movement
+                    smoothLookTo(headTarget, 0.05, 0.03, 0.02);
                 }
                 // Much longer movement duration to reduce packet spam
                 const moveDuration = 600 + Math.random() * 400; // 600-1000ms per step
