@@ -7,3 +7,60 @@ pls make the server cracked to the bot works
 - Interact with player Feature: he will spot a player if in range and say hi or he will ask questions
 - walking Feature: he can move looks around, ...
 - Path finding Feature: this can help the bot dont be stuck
+# 🚀 How to Run AFKSRBot
+🧩 Step 1: Go to Replit and create a new project
+
+- Visit https://replit.com
+- Log in 
+
+---
+
+⚙️ Step 2: Locate the config file
+
+- Open the file named config.json
+- Enter your server IP and server port
+- Choose a bot username (e.g. AFKSRBot)
+- If your server uses an authorization plugin (like AuthMe), set a bot password
+
+Example:
+
+{
+  "client": {
+    "host": "Australitis.aternos.me",
+    "port": "39519",
+    "password": "00000!",
+    "name": "AFKSRBot",
+    "inRegistered": false
+  }
+}
+`
+
+---
+
+▶️ Step 3: Run the bot
+
+- In the Replit Shell or Console, install the required library:
+  `bash
+  npm install mineflayer
+  `
+
+- Then start the bot:
+  `bash
+  node index.js
+  `
+
+→ The bot will log into your Minecraft server and stay online.
+
+---
+
+🔄 Step 4: Keep the bot online 24/7 (optional)
+
+- Create an account at uptimerobot.com
+- Set up a monitor to ping your Replit Webview link every 5 minutes  
+→ This prevents Replit from sleeping and keeps your bot alive
+
+---
+
+✅ Step 5: You're all set!
+
+AFKSRBot is now running and keeping your Aternos server alive around the clock.
