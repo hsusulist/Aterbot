@@ -88,6 +88,8 @@ const createBot = (): void => {
                 let waitingForServerResponse = false;
                 let serverQuestionAsker = '';
                 let responseTimeout: NodeJS.Timeout | null = null;
+                let currentSprintState = false; // Track sprint state to reduce toggling
+                let lastJumpTime = 0; // Track last jump time for cooldowns
                 
                 // Chat message every 5 minutes
                 const chatInterval = setInterval(() => {
@@ -143,11 +145,14 @@ const createBot = (): void => {
                                 return;
                         }
                         
-                        // Check if someone is greeting the bot directly (only real players)
+                        // Check if someone is greeting the bot directly (including "hi AFKbot123")
                         const botGreeting = message.toLowerCase().match(/\b(hi|hello|hey)\b.*\b(afk|bot|afkbot)\b/i) || 
                                           message.toLowerCase().match(/^(hi|hello|hey)$/i) ||
                                           (message.toLowerCase().includes(bot.username.toLowerCase()) && 
-                                           message.toLowerCase().match(/\b(hi|hello|hey|sup|yo)\b/i));
+                                           message.toLowerCase().match(/\b(hi|hello|hey|sup|yo)\b/i)) ||
+                                          message.toLowerCase().includes('hi afkbot123') ||
+                                          message.toLowerCase().includes('hello afkbot123') ||
+                                          message.toLowerCase().includes('hey afkbot123');
                         
                         if (botGreeting) {
                                 console.log(`👋 ${username} is greeting the bot! Responding and moving to them...`);
@@ -167,12 +172,19 @@ const createBot = (): void => {
                                         followingPlayerName = greetingPlayer.username;
                                         originalPosition = bot.entity.position.clone();
                                         
-                                        // Respond in chat
-                                        const responses = [
-                                                `Hi ${username}! Coming to you! 👋`,
-                                                `Hello ${username}! On my way!`,
-                                                `Hey ${username}! Let me come over!`
-                                        ];
+                                        // Respond with exact greeting format
+                                        const isExactBotGreeting = message.toLowerCase().includes('hi afkbot123') || 
+                                                                  message.toLowerCase().includes('hello afkbot123') ||
+                                                                  message.toLowerCase().includes('hey afkbot123');
+                                        
+                                        const responses = isExactBotGreeting ? 
+                                                [`hi ${username}`] : // Exact response for "hi AFKbot123"
+                                                [
+                                                        `Hi ${username}!`,
+                                                        `Hello ${username}!`,
+                                                        `Hey ${username}!`,
+                                                        `Hi ${username}! Coming to you!`
+                                                ];
                                         const randomResponse = responses[Math.floor(Math.random() * responses.length)];
                                         bot.chat(randomResponse);
                                 } else {
@@ -593,23 +605,44 @@ const createBot = (): void => {
                                 return;
                         }
                         
-                        // Random movement variations - NO MORE RANDOM SNEAKING
-                        const sprintChance = Math.random() < 0.4; // 40% chance to sprint
-                        const jumpWhileMoving = sprintChance && Math.random() < 0.3; // Only jump when sprinting (30% chance)
+                        // Batch movement approach - hold actions for multiple steps to reduce entity action spam
+                        if (!currentSprintState || moveCount % 8 === 0) { // Change sprint state every 8 steps or first time
+                                currentSprintState = Math.random() < 0.08; // 8% chance to sprint (very low to avoid violations)
+                                console.log(`🚶 Moving${currentSprintState ? " (sprinting batch)" : " (walking batch)"} (Step ${moveCount})`);
+                                bot.setControlState('sprint', currentSprintState);
+                        } else {
+                                console.log(`🚶 Moving${currentSprintState ? " (sprinting)" : ""} (Step ${moveCount})`);
+                        }
                         
-                        console.log(`🚶 Moving${sprintChance ? " (sprinting)" : ""}${jumpWhileMoving ? " (jumping)" : ""} (Step ${moveCount})`);
-
-                        // Apply movement controls
-                        bot.setControlState('sprint', sprintChance);
+                        // Very rare jumping - only when sprinting and with long cooldowns
+                        const timeSinceLastJump = Date.now() - (lastJumpTime || 0);
+                        if (currentSprintState && Math.random() < 0.03 && timeSinceLastJump > 8000) { // 3% chance, 8s cooldown
+                                bot.setControlState('jump', true);
+                                lastJumpTime = Date.now();
+                                console.log('🦘 Natural jump!');
+                        }
+                        
+                        // Set forward movement
                         bot.setControlState('forward', true);
                         
-                        if (jumpWhileMoving) {
-                                bot.setControlState('jump', true);
+                        // Very subtle head movements - much less frequent 
+                        if (Math.random() < 0.05) { // Only 5% chance for very natural feel
+                                const currentYaw = bot.entity.yaw;
+                                const currentPitch = bot.entity.pitch;
+                                
+                                // Tiny, realistic head adjustments
+                                const yawAdjustment = (Math.random() - 0.5) * 0.2; // ±6 degrees (very small)
+                                const pitchAdjustment = (Math.random() - 0.5) * 0.15; // ±4 degrees
+                                
+                                const newYaw = currentYaw + yawAdjustment;
+                                const newPitch = Math.max(-1.0, Math.min(1.0, currentPitch + pitchAdjustment));
+                                
+                                bot.look(newYaw, newPitch, false);
                         }
 
-                        // Variable movement duration for more natural feel
-                        const moveDuration = CONFIG.action.holdDuration + (Math.random() - 0.5) * 200; // ±100ms variation
-                        await sleep(Math.max(200, moveDuration)); // Ensure minimum 200ms
+                        // Much longer movement duration to reduce packet spam
+                        const moveDuration = 600 + Math.random() * 400; // 600-1000ms per step
+                        await sleep(moveDuration);
                         bot.clearControlStates();
                         } finally {
                                 isMoving = false;
@@ -621,8 +654,8 @@ const createBot = (): void => {
                         // Don't interfere with movement or wall avoidance
                         if (isMoving) return;
                         
-                        // 40% chance to look around each move (more human-like)
-                        if (Math.random() < 0.4) {
+                        // Much less frequent looking around (5% chance to reduce violations)
+                        if (Math.random() < 0.05) {
                                 const lookActions = [
                                         'look_left', 'look_right', 'look_up', 'look_down', 
                                         'look_around', 'check_behind', 'scan_horizon'
