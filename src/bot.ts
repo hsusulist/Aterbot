@@ -253,16 +253,19 @@ const createBot = (): void => {
                         
                         if (distance < 3) {
                                 console.log(`✅ Reached ${followingPlayerName}! Hello! 👋`);
+                                console.log(`💬 SENDING CHAT: Hello ${followingPlayerName}! do u love the server?`);
                                 
-                                // 70% chance to ask about server love when greeting
-                                const serverQuestionChance = Math.random() < 0.70;
-                                if (serverQuestionChance) {
+                                // ALWAYS ask about server love - force it to work  
+                                try {
                                         bot.chat(`Hello ${followingPlayerName}! do u love the server?`);
+                                        console.log(`✅ Chat message sent successfully!`);
                                         waitingForServerResponse = true;
                                         serverQuestionAsker = followingPlayerName;
-                                } else {
-                                        bot.chat(`Hello ${followingPlayerName}! 😊`);
+                                } catch (error) {
+                                        console.log(`❌ Chat error: ${error}`);
+                                        bot.chat(`Hello ${followingPlayerName}!`);
                                 }
+                                
                                 // Shift when greeting the player
                                 bot.setControlState('sneak', true);
                                 await sleep(2000); // Hold shift for 2 seconds when greeting
