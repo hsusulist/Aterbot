@@ -29,6 +29,16 @@ const createBot = () => {
         botConfig.password = CONFIG.client.microsoftAccount.password;
         botConfig.auth = 'microsoft';
     }
+    else if (CONFIG.client.randomSkin?.enabled && CONFIG.client.randomSkin.skins?.length > 0) {
+        // Use random skin from preset list
+        const randomSkin = CONFIG.client.randomSkin.skins[Math.floor(Math.random() * CONFIG.client.randomSkin.skins.length)];
+        console.log(`🎲 Using random skin: ${randomSkin}`);
+        botConfig.username = randomSkin;
+        botConfig.auth = CONFIG.client.auth || 'offline';
+        if (CONFIG.client.password && CONFIG.client.auth !== 'offline') {
+            botConfig.password = CONFIG.client.password;
+        }
+    }
     else {
         console.log('🤖 Using offline mode (default Steve skin)');
         botConfig.username = CONFIG.client.username;
@@ -58,7 +68,7 @@ const createBot = () => {
             }
         }, 2000); // Wait 2 seconds before sending command
         let moveCount = 0;
-        let targetDistance = 10 + Math.floor(Math.random() * 15); // Initial random distance 10-25
+        let targetDistance = 30 + Math.floor(Math.random() * 50); // Initial random distance 30-80 (much longer!)
         let currentDirection = 'forward';
         let isGoingBack = false;
         let isFollowingPlayer = false;
@@ -70,6 +80,7 @@ const createBot = () => {
         let isStandingStill = false;
         let waitingForServerResponse = false;
         let serverQuestionAsker = '';
+        let responseTimeout = null;
         // Chat message every 5 minutes
         const chatInterval = setInterval(() => {
             console.log('Sending love message...');
@@ -81,21 +92,30 @@ const createBot = () => {
             if (username === bot.username)
                 return;
             console.log(`💬 ${username}: ${message}`);
+            console.log(`🔧 DEBUG: waitingForServerResponse=${waitingForServerResponse}, serverQuestionAsker="${serverQuestionAsker}"`);
+            // Additional chat listener for better coverage
+            if (waitingForServerResponse) {
+                console.log(`🔍 Still waiting for response from ${serverQuestionAsker}, got message from ${username}`);
+            }
             // Check if waiting for server love response
             if (waitingForServerResponse && username === serverQuestionAsker) {
                 const response = message.toLowerCase().trim();
                 console.log(`🔍 Checking response "${response}" from ${username}`);
-                if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love')) {
+                if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup')) {
                     console.log(`😊 ${username} loves the server! Responding positively.`);
                     bot.chat(`me too i love it! thanks ${username}! 😊`);
                     waitingForServerResponse = false;
                     serverQuestionAsker = '';
+                    if (responseTimeout)
+                        clearTimeout(responseTimeout);
                 }
-                else if (response.includes('no') || response === 'n' || response.includes('hate') || response.includes('bad')) {
+                else if (response.includes('no') || response === 'n' || response.includes('hate') || response.includes('bad') || response.includes('nah')) {
                     console.log(`😡 ${username} doesn't love the server. Getting angry!`);
                     bot.chat(`${username} why do u hate this server? u should try to love it more! 😢`);
                     waitingForServerResponse = false;
                     serverQuestionAsker = '';
+                    if (responseTimeout)
+                        clearTimeout(responseTimeout);
                 }
                 else {
                     console.log(`❓ Unknown response from ${username}: "${response}"`);
@@ -179,6 +199,42 @@ const createBot = () => {
                 else {
                     console.log(`❓ Player '${targetPlayerName}' not found or not online`);
                 }
+            }
+        });
+        // Alternative chat listener for modern servers (fallback)
+        bot.on('message', (jsonMsg) => {
+            try {
+                const msgText = jsonMsg.toString();
+                // Extract username and message from various formats
+                const chatMatch = msgText.match(/<([^>]+)>\s*(.+)|([^:]+):\s*(.+)/);
+                if (chatMatch && waitingForServerResponse) {
+                    const username = chatMatch[1] || chatMatch[3];
+                    const message = chatMatch[2] || chatMatch[4];
+                    if (username && message && username.toLowerCase() === serverQuestionAsker.toLowerCase()) {
+                        console.log(`🔄 FALLBACK: Detected response from ${username}: "${message}"`);
+                        // Process the response using same logic
+                        const response = message.toLowerCase().trim();
+                        if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup')) {
+                            console.log(`😊 ${username} loves the server! (via fallback)`);
+                            bot.chat(`me too i love it! thanks ${username}! 😊`);
+                            waitingForServerResponse = false;
+                            serverQuestionAsker = '';
+                            if (responseTimeout)
+                                clearTimeout(responseTimeout);
+                        }
+                        else if (response.includes('no') || response === 'n' || response.includes('hate') || response.includes('bad') || response.includes('nah')) {
+                            console.log(`😡 ${username} doesn't love the server! (via fallback)`);
+                            bot.chat(`${username} why do u hate this server? u should try to love it more! 😢`);
+                            waitingForServerResponse = false;
+                            serverQuestionAsker = '';
+                            if (responseTimeout)
+                                clearTimeout(responseTimeout);
+                        }
+                    }
+                }
+            }
+            catch (error) {
+                // Ignore parsing errors
             }
         });
         const findNearbyPlayer = () => {
@@ -285,6 +341,13 @@ const createBot = () => {
                     console.log(`✅ Chat message sent successfully!`);
                     waitingForServerResponse = true;
                     serverQuestionAsker = followingPlayerName;
+                    // Set timeout to reset waiting state after 60 seconds
+                    responseTimeout = setTimeout(() => {
+                        console.log(`⏰ Response timeout - stopping wait for ${serverQuestionAsker}`);
+                        waitingForServerResponse = false;
+                        serverQuestionAsker = '';
+                        responseTimeout = null;
+                    }, 60000);
                 }
                 catch (error) {
                     console.log(`❌ Chat error: ${error}`);
@@ -366,8 +429,8 @@ const createBot = () => {
                 }
                 // Random human-like movement behavior
                 moveCount++;
-                // Change direction when target distance reached or random chance (15%)
-                if (moveCount >= targetDistance || Math.random() < 0.15) {
+                // Change direction when target distance reached or random chance (ONLY 3% now!)
+                if (moveCount >= targetDistance || Math.random() < 0.03) {
                     const directions = ['forward', 'left', 'right', 'back'];
                     const newDirection = getRandom(directions);
                     console.log(`🎯 Randomly changing direction to: ${newDirection}`);
@@ -392,8 +455,8 @@ const createBot = () => {
                         const currentYaw = bot.entity.yaw;
                         await bot.look(currentYaw + angleChange, 0, true);
                     }
-                    // Reset movement counter with random distance (5-25 moves)
-                    targetDistance = 5 + Math.floor(Math.random() * 20);
+                    // Reset movement counter with random distance (30-80 moves - much longer!)
+                    targetDistance = 30 + Math.floor(Math.random() * 50);
                     moveCount = 0;
                     console.log(`🎲 Will move ${targetDistance} steps in this direction`);
                 }
