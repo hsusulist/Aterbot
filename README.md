@@ -24,17 +24,11 @@ pls make the server cracked to the bot works
 
 Example:
 
-{
-  "client": {
     "host": "Australitis.aternos.me",
     "port": "39519",
     "password": "00000!",
-    "name": "Bot",
-    "inRegistered": false
-  }
-}
-`
-
+    "name": "Bot"
+  
 ---
 
 📥 Step 3: Install required libraries
