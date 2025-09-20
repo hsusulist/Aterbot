@@ -221,6 +221,31 @@ const createBot = () => {
             try {
                 const msgText = jsonMsg.toString();
                 console.log(`📄 RAW MESSAGE: ${msgText}`);
+                // Check if this is just a simple response (like "YES", "yes", "no") when waiting
+                if (waitingForServerResponse && msgText && typeof msgText === 'string') {
+                    const simpleResponse = msgText.toLowerCase().trim();
+                    if (simpleResponse === 'yes' || simpleResponse === 'y' || simpleResponse === 'yeah' ||
+                        simpleResponse === 'yep' || simpleResponse === 'yup' || simpleResponse === 'love' ||
+                        simpleResponse === 'no' || simpleResponse === 'n' || simpleResponse === 'hate' ||
+                        simpleResponse === 'nah' || simpleResponse === 'bad') {
+                        console.log(`🎯 SIMPLE RESPONSE DETECTED: "${simpleResponse}" (assuming from ${serverQuestionAsker})`);
+                        if (simpleResponse.includes('yes') || simpleResponse === 'y' || simpleResponse === 'yeah' || simpleResponse === 'love' || simpleResponse === 'yep' || simpleResponse === 'yup') {
+                            console.log(`😊 Player loves the server! Responding positively.`);
+                            bot.chat(`i loved this server very much !`);
+                        }
+                        else {
+                            console.log(`😡 Player doesn't love the server. Getting angry!`);
+                            bot.chat(`GET OUT YOU DONT BELONG TO THIS SERVER IF YOU DONT LOVE IT I HATE U`);
+                        }
+                        // Always reset the waiting state and keep moving!
+                        waitingForServerResponse = false;
+                        isStandingStill = false;
+                        serverQuestionAsker = '';
+                        if (responseTimeout)
+                            clearTimeout(responseTimeout);
+                        return;
+                    }
+                }
                 // Extract username and message from various formats
                 const chatMatch = msgText.match(/<([^>]+)>\s*(.+)|([^:]+):\s*(.+)/);
                 if (chatMatch) {
@@ -371,13 +396,11 @@ const createBot = () => {
                     console.log(`✅ Chat message sent successfully!`);
                     waitingForServerResponse = true;
                     serverQuestionAsker = followingPlayerName;
-                    // Set 20-second timer - bot stands still and waits (increased from 7 seconds)
-                    console.log(`⏱️ Waiting 20 seconds for ${followingPlayerName} to answer...`);
-                    isStandingStill = true;
+                    // Set 20-second timer - bot keeps moving naturally while waiting
+                    console.log(`⏱️ Waiting 20 seconds for ${followingPlayerName} to answer (but keeps moving naturally)...`);
                     responseTimeout = setTimeout(() => {
                         console.log(`⏰ 20-second timeout - stopping wait for ${serverQuestionAsker}`);
                         waitingForServerResponse = false;
-                        isStandingStill = false;
                         serverQuestionAsker = '';
                         responseTimeout = null;
                     }, 20000);
@@ -405,21 +428,8 @@ const createBot = () => {
             }
         };
         const changePos = async () => {
-            // Prevent overlapping movements or if standing still waiting for answer
-            if (isMoving || isStandingStill || waitingForServerResponse) {
-                if (waitingForServerResponse && isStandingStill) {
-                    // Look at the player while waiting for response
-                    const targetPlayer = Object.values(bot.players).find(player => player.username &&
-                        player.username.toLowerCase() === serverQuestionAsker.toLowerCase() &&
-                        player.entity);
-                    if (targetPlayer) {
-                        bot.lookAt(targetPlayer.entity.position.offset(0, targetPlayer.entity.height, 0));
-                        console.log('👀 Looking at player while waiting for response...');
-                    }
-                    else {
-                        console.log('🤖 Standing still, waiting for player response...');
-                    }
-                }
+            // Only prevent overlapping movements, NEVER stop moving completely
+            if (isMoving) {
                 return;
             }
             isMoving = true;
