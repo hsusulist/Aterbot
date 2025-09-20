@@ -115,14 +115,16 @@ const createBot = (): void => {
                                 
                                 if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup') || response.includes('hi') || response.includes('hello') || response.includes('hey')) {
                                         console.log(`😊 ${username} loves the server! Responding positively.`);
-                                        bot.chat(`me too i love it! thanks ${username}! 😊`);
+                                        bot.chat(`i loved this server very much !`);
                                         waitingForServerResponse = false;
+                                        isStandingStill = false;
                                         serverQuestionAsker = '';
                                         if (responseTimeout) clearTimeout(responseTimeout);
                                 } else if (response.includes('no') || response === 'n' || response.includes('hate') || response.includes('bad') || response.includes('nah')) {
                                         console.log(`😡 ${username} doesn't love the server. Getting angry!`);
-                                        bot.chat(`${username} why do u hate this server? u should try to love it more! 😢`);
+                                        bot.chat(`GET OUT YOU DONT BELONG TO THIS SERVER IF YOU DONT LOVE IT I HATE U`);
                                         waitingForServerResponse = false;
+                                        isStandingStill = false;
                                         serverQuestionAsker = '';
                                         if (responseTimeout) clearTimeout(responseTimeout);
                                 } else {
@@ -242,14 +244,16 @@ const createBot = (): void => {
                                                 
                                                 if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup') || response.includes('hi') || response.includes('hello') || response.includes('hey')) {
                                                         console.log(`😊 ${username} loves the server! (via fallback)`);
-                                                        bot.chat(`me too i love it! thanks ${username}! 😊`);
+                                                        bot.chat(`i loved this server very much !`);
                                                         waitingForServerResponse = false;
+                                                        isStandingStill = false;
                                                         serverQuestionAsker = '';
                                                         if (responseTimeout) clearTimeout(responseTimeout);
                                                 } else if (response.includes('no') || response === 'n' || response.includes('hate') || response.includes('bad') || response.includes('nah')) {
                                                         console.log(`😡 ${username} doesn't love the server! (via fallback)`);
-                                                        bot.chat(`${username} why do u hate this server? u should try to love it more! 😢`);
+                                                        bot.chat(`GET OUT YOU DONT BELONG TO THIS SERVER IF YOU DONT LOVE IT I HATE U`);
                                                         waitingForServerResponse = false;
+                                                        isStandingStill = false;
                                                         serverQuestionAsker = '';
                                                         if (responseTimeout) clearTimeout(responseTimeout);
                                                 }
@@ -308,15 +312,10 @@ const createBot = (): void => {
                         const feetSolid = blockFeet && blockFeet.boundingBox === 'block';
                         const headSolid = blockHead && blockHead.boundingBox === 'block';
                         
-                        // If only feet level is blocked (head is clear), it might be stairs - try to jump
-                        if (feetSolid && !headSolid) {
-                                console.log('🪜 Possible stairs detected! Trying to jump up...');
-                                bot.setControlState('jump', true);
-                                bot.setControlState('forward', true);
-                                setTimeout(() => {
-                                        bot.clearControlStates();
-                                }, 400);
-                                return false; // Don't treat as wall, let bot try to jump
+                        // If only feet level is blocked (head is clear), it might be stairs - try to jump ONCE
+                        if (feetSolid && !headSolid && !isMoving) {
+                                console.log('🪜 Stairs detected! Jumping up...');
+                                return false; // Don't treat as wall, let normal movement handle it
                         }
                         
                         // True wall if both levels are blocked
@@ -400,13 +399,16 @@ const createBot = (): void => {
                                         waitingForServerResponse = true;
                                         serverQuestionAsker = followingPlayerName;
                                         
-                                        // Set timeout to reset waiting state after 60 seconds
+                                        // Set 7-second timer - bot stands still and waits
+                                        console.log(`⏱️ Waiting 7 seconds for ${followingPlayerName} to answer...`);
+                                        isStandingStill = true;
                                         responseTimeout = setTimeout(() => {
-                                                console.log(`⏰ Response timeout - stopping wait for ${serverQuestionAsker}`);
+                                                console.log(`⏰ 7-second timeout - stopping wait for ${serverQuestionAsker}`);
                                                 waitingForServerResponse = false;
+                                                isStandingStill = false;
                                                 serverQuestionAsker = '';
                                                 responseTimeout = null;
-                                        }, 60000);
+                                        }, 7000);
                                 } catch (error) {
                                         console.log(`❌ Chat error: ${error}`);
                                         bot.chat(`Hello ${followingPlayerName}!`);
@@ -431,8 +433,11 @@ const createBot = (): void => {
                 };
 
                 const changePos = async (): Promise<void> => {
-                        // Prevent overlapping movements or if standing still
-                        if (isMoving || isStandingStill) {
+                        // Prevent overlapping movements or if standing still waiting for answer
+                        if (isMoving || isStandingStill || waitingForServerResponse) {
+                                if (waitingForServerResponse) {
+                                        console.log('🤖 Standing still, waiting for player response...');
+                                }
                                 return;
                         }
                         isMoving = true;
