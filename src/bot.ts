@@ -304,10 +304,22 @@ const createBot = (): void => {
                         const blockFeet = bot.blockAt(checkPosFeet);
                         const blockHead = bot.blockAt(checkPosHead);
                         
-                        // Wall if either foot or head level has a solid block (not null/undefined)
+                        // Check if blocks are solid
                         const feetSolid = blockFeet && blockFeet.boundingBox === 'block';
                         const headSolid = blockHead && blockHead.boundingBox === 'block';
                         
+                        // If only feet level is blocked (head is clear), it might be stairs - try to jump
+                        if (feetSolid && !headSolid) {
+                                console.log('🪜 Possible stairs detected! Trying to jump up...');
+                                bot.setControlState('jump', true);
+                                bot.setControlState('forward', true);
+                                setTimeout(() => {
+                                        bot.clearControlStates();
+                                }, 400);
+                                return false; // Don't treat as wall, let bot try to jump
+                        }
+                        
+                        // True wall if both levels are blocked
                         return Boolean(feetSolid || headSolid);
                 };
 
@@ -552,9 +564,22 @@ const createBot = (): void => {
                                 return; // Skip this movement cycle to allow the new direction to take effect
                         }
                         
+                        // Check if bot is in water and needs to swim
+                        const currentBlock = bot.blockAt(bot.entity.position);
+                        const isInWater = currentBlock && (currentBlock.name === 'water' || currentBlock.name === 'flowing_water');
+                        
+                        if (isInWater) {
+                                console.log('🏊 In water! Swimming to surface...');
+                                bot.setControlState('jump', true);
+                                bot.setControlState('forward', true);
+                                await sleep(100);
+                                bot.clearControlStates();
+                                return;
+                        }
+                        
                         // Random movement variations - NO MORE RANDOM SNEAKING
                         const sprintChance = Math.random() < 0.4; // 40% chance to sprint
-                        const jumpWhileMoving = Math.random() < 0.08; // 8% chance to jump while moving
+                        const jumpWhileMoving = sprintChance && Math.random() < 0.3; // Only jump when sprinting (30% chance)
                         
                         console.log(`🚶 Moving${sprintChance ? " (sprinting)" : ""}${jumpWhileMoving ? " (jumping)" : ""} (Step ${moveCount})`);
 
