@@ -1,0 +1,52 @@
+modules = ["nodejs-20"]
+[nix]
+channel = "stable-25_05"
+packages = ["unzip"]
+
+[agent]
+expertMode = true
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Aterbot"
+
+[[workflows.workflow]]
+name = "Aterbot"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm start"
+waitForPort = 5000
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 40279
+externalPort = 3003
+
+[[ports]]
+localPort = 44521
+externalPort = 3000
+
+[[ports]]
+localPort = 45039
+externalPort = 3002
+
+[deployment]
+deploymentTarget = "vm"
+build = ["npm", "run", "build"]
+run = ["npm", "start"]

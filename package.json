@@ -1,0 +1,20 @@
+{
+  "name": "aterbot",
+  "version": "1.0.0",
+  "description": "24/7 Minecraft AFK bot",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && cp config.json dist/",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "mineflayer": "^4.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.17",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}
