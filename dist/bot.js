@@ -81,6 +81,8 @@ const createBot = () => {
         let waitingForServerResponse = false;
         let serverQuestionAsker = '';
         let responseTimeout = null;
+        let currentSprintState = false; // Track sprint state to reduce toggling
+        let lastJumpTime = 0; // Track last jump time for cooldowns
         // Chat message every 5 minutes
         const chatInterval = setInterval(() => {
             console.log('Sending love message...');
@@ -97,22 +99,31 @@ const createBot = () => {
             if (waitingForServerResponse) {
                 console.log(`🔍 Still waiting for response from ${serverQuestionAsker}, got message from ${username}`);
             }
+            // Filter out system/plugin messages FIRST (ignore messages from bots/plugins)
+            const systemUsernames = ['grim', 'clearlag', 'fastlogin', 'owner', 'console', 'server', 'authme', 'essentials'];
+            const isSystemMessage = systemUsernames.some(sys => username.toLowerCase().includes(sys.toLowerCase()));
+            if (isSystemMessage) {
+                // Don't respond to system/plugin messages
+                return;
+            }
             // Check if waiting for server love response
             if (waitingForServerResponse && username === serverQuestionAsker) {
                 const response = message.toLowerCase().trim();
                 console.log(`🔍 Checking response "${response}" from ${username}`);
-                if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup')) {
+                if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup') || response.includes('hi') || response.includes('hello') || response.includes('hey')) {
                     console.log(`😊 ${username} loves the server! Responding positively.`);
-                    bot.chat(`me too i love it! thanks ${username}! 😊`);
+                    bot.chat(`i loved this server very much !`);
                     waitingForServerResponse = false;
+                    isStandingStill = false;
                     serverQuestionAsker = '';
                     if (responseTimeout)
                         clearTimeout(responseTimeout);
                 }
                 else if (response.includes('no') || response === 'n' || response.includes('hate') || response.includes('bad') || response.includes('nah')) {
                     console.log(`😡 ${username} doesn't love the server. Getting angry!`);
-                    bot.chat(`${username} why do u hate this server? u should try to love it more! 😢`);
+                    bot.chat(`GET OUT YOU DONT BELONG TO THIS SERVER IF YOU DONT LOVE IT I HATE U`);
                     waitingForServerResponse = false;
+                    isStandingStill = false;
                     serverQuestionAsker = '';
                     if (responseTimeout)
                         clearTimeout(responseTimeout);
@@ -123,18 +134,14 @@ const createBot = () => {
                 }
                 return;
             }
-            // Filter out system/plugin messages (ignore messages from bots/plugins)
-            const systemUsernames = ['grim', 'clearlag', 'fastlogin', 'owner', 'console', 'server', 'authme', 'essentials'];
-            const isSystemMessage = systemUsernames.some(sys => username.toLowerCase().includes(sys.toLowerCase()));
-            if (isSystemMessage) {
-                // Don't respond to system/plugin messages
-                return;
-            }
-            // Check if someone is greeting the bot directly (only real players)
+            // Check if someone is greeting the bot directly (including "hi AFKbot123")
             const botGreeting = message.toLowerCase().match(/\b(hi|hello|hey)\b.*\b(afk|bot|afkbot)\b/i) ||
                 message.toLowerCase().match(/^(hi|hello|hey)$/i) ||
                 (message.toLowerCase().includes(bot.username.toLowerCase()) &&
-                    message.toLowerCase().match(/\b(hi|hello|hey|sup|yo)\b/i));
+                    message.toLowerCase().match(/\b(hi|hello|hey|sup|yo)\b/i)) ||
+                message.toLowerCase().includes('hi afkbot123') ||
+                message.toLowerCase().includes('hello afkbot123') ||
+                message.toLowerCase().includes('hey afkbot123');
             if (botGreeting) {
                 console.log(`👋 ${username} is greeting the bot! Responding and moving to them...`);
                 // Find the player who greeted us
@@ -148,12 +155,18 @@ const createBot = () => {
                     targetPlayerPosition = greetingPlayer.entity.position.clone();
                     followingPlayerName = greetingPlayer.username;
                     originalPosition = bot.entity.position.clone();
-                    // Respond in chat
-                    const responses = [
-                        `Hi ${username}! Coming to you! 👋`,
-                        `Hello ${username}! On my way!`,
-                        `Hey ${username}! Let me come over!`
-                    ];
+                    // Respond with exact greeting format
+                    const isExactBotGreeting = message.toLowerCase().includes('hi afkbot123') ||
+                        message.toLowerCase().includes('hello afkbot123') ||
+                        message.toLowerCase().includes('hey afkbot123');
+                    const responses = isExactBotGreeting ?
+                        [`hi ${username}`] : // Exact response for "hi AFKbot123"
+                        [
+                            `Hi ${username}!`,
+                            `Hello ${username}!`,
+                            `Hey ${username}!`,
+                            `Hi ${username}! Coming to you!`
+                        ];
                     const randomResponse = responses[Math.floor(Math.random() * responses.length)];
                     bot.chat(randomResponse);
                 }
@@ -214,18 +227,20 @@ const createBot = () => {
                         console.log(`🔄 FALLBACK: Detected response from ${username}: "${message}"`);
                         // Process the response using same logic
                         const response = message.toLowerCase().trim();
-                        if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup')) {
+                        if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup') || response.includes('hi') || response.includes('hello') || response.includes('hey')) {
                             console.log(`😊 ${username} loves the server! (via fallback)`);
-                            bot.chat(`me too i love it! thanks ${username}! 😊`);
+                            bot.chat(`i loved this server very much !`);
                             waitingForServerResponse = false;
+                            isStandingStill = false;
                             serverQuestionAsker = '';
                             if (responseTimeout)
                                 clearTimeout(responseTimeout);
                         }
                         else if (response.includes('no') || response === 'n' || response.includes('hate') || response.includes('bad') || response.includes('nah')) {
                             console.log(`😡 ${username} doesn't love the server! (via fallback)`);
-                            bot.chat(`${username} why do u hate this server? u should try to love it more! 😢`);
+                            bot.chat(`GET OUT YOU DONT BELONG TO THIS SERVER IF YOU DONT LOVE IT I HATE U`);
                             waitingForServerResponse = false;
+                            isStandingStill = false;
                             serverQuestionAsker = '';
                             if (responseTimeout)
                                 clearTimeout(responseTimeout);
@@ -274,9 +289,15 @@ const createBot = () => {
             const checkPosHead = currentPos.offset(offsetX, 1, offsetZ);
             const blockFeet = bot.blockAt(checkPosFeet);
             const blockHead = bot.blockAt(checkPosHead);
-            // Wall if either foot or head level has a solid block (not null/undefined)
+            // Check if blocks are solid
             const feetSolid = blockFeet && blockFeet.boundingBox === 'block';
             const headSolid = blockHead && blockHead.boundingBox === 'block';
+            // If only feet level is blocked (head is clear), it might be stairs - try to jump ONCE
+            if (feetSolid && !headSolid && !isMoving) {
+                console.log('🪜 Stairs detected! Jumping up...');
+                return false; // Don't treat as wall, let normal movement handle it
+            }
+            // True wall if both levels are blocked
             return Boolean(feetSolid || headSolid);
         };
         const avoidWall = async () => {
@@ -341,13 +362,16 @@ const createBot = () => {
                     console.log(`✅ Chat message sent successfully!`);
                     waitingForServerResponse = true;
                     serverQuestionAsker = followingPlayerName;
-                    // Set timeout to reset waiting state after 60 seconds
+                    // Set 7-second timer - bot stands still and waits
+                    console.log(`⏱️ Waiting 7 seconds for ${followingPlayerName} to answer...`);
+                    isStandingStill = true;
                     responseTimeout = setTimeout(() => {
-                        console.log(`⏰ Response timeout - stopping wait for ${serverQuestionAsker}`);
+                        console.log(`⏰ 7-second timeout - stopping wait for ${serverQuestionAsker}`);
                         waitingForServerResponse = false;
+                        isStandingStill = false;
                         serverQuestionAsker = '';
                         responseTimeout = null;
-                    }, 60000);
+                    }, 7000);
                 }
                 catch (error) {
                     console.log(`❌ Chat error: ${error}`);
@@ -372,8 +396,21 @@ const createBot = () => {
             }
         };
         const changePos = async () => {
-            // Prevent overlapping movements or if standing still
-            if (isMoving || isStandingStill) {
+            // Prevent overlapping movements or if standing still waiting for answer
+            if (isMoving || isStandingStill || waitingForServerResponse) {
+                if (waitingForServerResponse && isStandingStill) {
+                    // Look at the player while waiting for response
+                    const targetPlayer = Object.values(bot.players).find(player => player.username &&
+                        player.username.toLowerCase() === serverQuestionAsker.toLowerCase() &&
+                        player.entity);
+                    if (targetPlayer) {
+                        bot.lookAt(targetPlayer.entity.position.offset(0, targetPlayer.entity.height, 0));
+                        console.log('👀 Looking at player while waiting for response...');
+                    }
+                    else {
+                        console.log('🤖 Standing still, waiting for player response...');
+                    }
+                }
                 return;
             }
             isMoving = true;
@@ -488,19 +525,49 @@ const createBot = () => {
                     await avoidWall();
                     return; // Skip this movement cycle to allow the new direction to take effect
                 }
-                // Random movement variations - NO MORE RANDOM SNEAKING
-                const sprintChance = Math.random() < 0.4; // 40% chance to sprint
-                const jumpWhileMoving = Math.random() < 0.08; // 8% chance to jump while moving
-                console.log(`🚶 Moving${sprintChance ? " (sprinting)" : ""}${jumpWhileMoving ? " (jumping)" : ""} (Step ${moveCount})`);
-                // Apply movement controls
-                bot.setControlState('sprint', sprintChance);
-                bot.setControlState('forward', true);
-                if (jumpWhileMoving) {
+                // Check if bot is in water and needs to swim
+                const currentBlock = bot.blockAt(bot.entity.position);
+                const isInWater = currentBlock && (currentBlock.name === 'water' || currentBlock.name === 'flowing_water');
+                if (isInWater) {
+                    console.log('🏊 In water! Swimming to surface...');
                     bot.setControlState('jump', true);
+                    bot.setControlState('forward', true);
+                    await sleep(100);
+                    bot.clearControlStates();
+                    return;
                 }
-                // Variable movement duration for more natural feel
-                const moveDuration = CONFIG.action.holdDuration + (Math.random() - 0.5) * 200; // ±100ms variation
-                await sleep(Math.max(200, moveDuration)); // Ensure minimum 200ms
+                // Batch movement approach - hold actions for multiple steps to reduce entity action spam
+                if (!currentSprintState || moveCount % 8 === 0) { // Change sprint state every 8 steps or first time
+                    currentSprintState = Math.random() < 0.08; // 8% chance to sprint (very low to avoid violations)
+                    console.log(`🚶 Moving${currentSprintState ? " (sprinting batch)" : " (walking batch)"} (Step ${moveCount})`);
+                    bot.setControlState('sprint', currentSprintState);
+                }
+                else {
+                    console.log(`🚶 Moving${currentSprintState ? " (sprinting)" : ""} (Step ${moveCount})`);
+                }
+                // Very rare jumping - only when sprinting and with long cooldowns
+                const timeSinceLastJump = Date.now() - (lastJumpTime || 0);
+                if (currentSprintState && Math.random() < 0.03 && timeSinceLastJump > 8000) { // 3% chance, 8s cooldown
+                    bot.setControlState('jump', true);
+                    lastJumpTime = Date.now();
+                    console.log('🦘 Natural jump!');
+                }
+                // Set forward movement
+                bot.setControlState('forward', true);
+                // Very subtle head movements - much less frequent 
+                if (Math.random() < 0.05) { // Only 5% chance for very natural feel
+                    const currentYaw = bot.entity.yaw;
+                    const currentPitch = bot.entity.pitch;
+                    // Tiny, realistic head adjustments
+                    const yawAdjustment = (Math.random() - 0.5) * 0.2; // ±6 degrees (very small)
+                    const pitchAdjustment = (Math.random() - 0.5) * 0.15; // ±4 degrees
+                    const newYaw = currentYaw + yawAdjustment;
+                    const newPitch = Math.max(-1.0, Math.min(1.0, currentPitch + pitchAdjustment));
+                    bot.look(newYaw, newPitch, false);
+                }
+                // Much longer movement duration to reduce packet spam
+                const moveDuration = 600 + Math.random() * 400; // 600-1000ms per step
+                await sleep(moveDuration);
                 bot.clearControlStates();
             }
             finally {
@@ -512,8 +579,8 @@ const createBot = () => {
             // Don't interfere with movement or wall avoidance
             if (isMoving)
                 return;
-            // 40% chance to look around each move (more human-like)
-            if (Math.random() < 0.4) {
+            // Much less frequent looking around (5% chance to reduce violations)
+            if (Math.random() < 0.05) {
                 const lookActions = [
                     'look_left', 'look_right', 'look_up', 'look_down',
                     'look_around', 'check_behind', 'scan_horizon'

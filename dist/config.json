@@ -13,7 +13,7 @@
                         "comment": "Set enabled to true and add your Microsoft account email/password to use a custom skin"
                 },
                 "randomSkin": {
-                        "enabled": true,
+                        "enabled": false,
                         "skins": [
                                 "SteveBot", "AlexBot", "CoolDude123", "MinecraftPro", "BuilderBot",
                                 "PlayerOne", "GamerBoy", "CraftMaster", "BlockHead", "PixelPlayer"
@@ -25,7 +25,7 @@
         "logLevel": ["error", "log", "debug"],
         "action": {
                 "commands": ["forward", "back", "left", "right", "jump"],
-                "holdDuration": 500,
+                "holdDuration": 120,
                 "retryDelay": 15000
         }
 }
