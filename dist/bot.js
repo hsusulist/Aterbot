@@ -115,7 +115,7 @@ const createBot = () => {
                 console.log(`🔍 Checking response "${response}" from ${username}`);
                 if (response.includes('yes') || response === 'y' || response.includes('yeah') || response.includes('love') || response.includes('yep') || response.includes('yup') || response.includes('hi') || response.includes('hello') || response.includes('hey')) {
                     console.log(`😊 ${username} loves the server! Responding positively.`);
-                    bot.chat(`me too i loved this server very much !`);
+                    bot.chat(`i loved this server very much !`);
                     waitingForServerResponse = false;
                     isStandingStill = false;
                     serverQuestionAsker = '';

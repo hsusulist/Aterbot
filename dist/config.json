@@ -1,10 +1,10 @@
 {
         "client": {
-                "host": "Ashtrails.aternos.me",
-                "port": "50319",
-                "username": "AFKBot123",
-                "password": "bot123",
-                "isRegistered": true,
+                "host": "server_ip",
+                "port": "server_port",
+                "username": "Bot_name",
+                "password": "bot_password",
+                "isRegistered": false,
                 "auth": "offline",
                 "microsoftAccount": {
                         "enabled": false,
