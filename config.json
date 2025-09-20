@@ -4,7 +4,7 @@
                 "port": "server_port",
                 "username": "Bot_name",
                 "password": "bot_password",
-                "isRegistered": true,
+                "isRegistered": false,
                 "auth": "offline",
                 "microsoftAccount": {
                         "enabled": false,
