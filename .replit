@@ -52,5 +52,5 @@ externalPort = 3002
 
 [deployment]
 deploymentTarget = "vm"
-run = ["npm", "start"]
 build = ["npm", "run", "build"]
+run = ["npm", "start"]
