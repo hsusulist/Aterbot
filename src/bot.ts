@@ -55,6 +55,8 @@ const createBot = (): void => {
                 let targetPlayerPosition: any = null;
                 let followingPlayerName = '';
                 let originalPosition: any = null;
+                let lastPlayerCheckTime = 0;
+                let lastPlayerDetected = '';
                 
                 // Chat message every 5 minutes
                 const chatInterval = setInterval(() => {
@@ -203,8 +205,9 @@ const createBot = (): void => {
                         
                         // Move forward towards target (since we're already facing the target)
                         const halfChance: boolean = Math.random() < 0.5;
-                        console.log(`🏃‍♂️ Following ${followingPlayerName}! Moving forward${halfChance ? " with sprinting" : ''}`);
                         
+                        // Shift when approaching player
+                        bot.setControlState('sneak', true);
                         bot.setControlState('sprint', halfChance);
                         bot.setControlState('forward', true);
                         
@@ -214,20 +217,25 @@ const createBot = (): void => {
                         // Check distance after movement using current position
                         const newBotPos = bot.entity.position;
                         const distance = newBotPos.distanceTo(targetPos);
-                        console.log(`📏 Distance to ${followingPlayerName}: ${distance.toFixed(2)} blocks`);
                         
                         if (distance < 3) {
                                 console.log(`✅ Reached ${followingPlayerName}! Hello! 👋`);
                                 bot.chat(`Hello ${followingPlayerName}! 😊`);
+                                // Shift when greeting the player
+                                bot.setControlState('sneak', true);
+                                await sleep(2000); // Hold shift for 2 seconds when greeting
+                                bot.setControlState('sneak', false);
                                 isFollowingPlayer = false;
                                 targetPlayerPosition = null;
                                 followingPlayerName = '';
+                                lastPlayerDetected = ''; // Reset so we can detect them again later
                         } else if (distance > 100) {
                                 console.log(`🚫 Target too far away (${distance.toFixed(2)} blocks)! Giving up chase...`);
                                 bot.chat(`Sorry ${followingPlayerName}, you're too far away! 😅`);
                                 isFollowingPlayer = false;
                                 targetPlayerPosition = null;
                                 followingPlayerName = '';
+                                lastPlayerDetected = ''; // Reset so we can detect them again later
                         }
                 };
 
@@ -239,24 +247,27 @@ const createBot = (): void => {
                         isMoving = true;
                         
                         try {
-                        // 5% chance to spot and follow a player (only when not already following)
-                        if (!isFollowingPlayer && Math.random() < 0.05) {
-                                console.log('🔍 Checking for nearby players...');
-                                const allPlayers = Object.keys(bot.players);
-                                console.log(`📊 Total players on server: ${allPlayers.length} (${allPlayers.join(', ')})`);
-                                
+                        // 1% chance to spot and follow a player (only when not already following) with 15-second cooldown
+                        const now = Date.now();
+                        if (!isFollowingPlayer && Math.random() < 0.01 && (now - lastPlayerCheckTime) > 15000) {
+                                lastPlayerCheckTime = now;
                                 const nearbyPlayer = findNearbyPlayer();
-                                if (nearbyPlayer) {
+                                if (nearbyPlayer && nearbyPlayer.username !== lastPlayerDetected) {
                                         isFollowingPlayer = true;
                                         targetPlayerPosition = nearbyPlayer.entity.position.clone();
                                         followingPlayerName = nearbyPlayer.username;
                                         originalPosition = bot.entity.position.clone();
+                                        lastPlayerDetected = nearbyPlayer.username;
                                         
                                         console.log(`👀 Spotted player ${followingPlayerName}! Following them...`);
                                         bot.chat(`${followingPlayerName}!`);
                                         
-                                        // Look at the player
+                                        // Shift when looking at the player
+                                        bot.setControlState('sneak', true);
                                         await bot.lookAt(nearbyPlayer.entity.position.offset(0, nearbyPlayer.entity.height, 0));
+                                        await sleep(1000); // Hold shift for 1 second
+                                        bot.setControlState('sneak', false);
+                                        
                                         await moveTowardsPlayer(targetPlayerPosition);
                                         return;
                                 }
